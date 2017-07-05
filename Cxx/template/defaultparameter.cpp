@@ -1,14 +1,18 @@
 /*************************************************************************
-    > File Name: alarm.cpp
+    > File Name: defaultparameter.cpp
     > Author: wangjx
     > Mail: wangjianxing5210@163.com 
-    > Created Time: 2017年05月02日 星期二 20时36分48秒
+    > Created Time: 2017年07月05日 星期三 20时02分41秒
  ************************************************************************/
 
 #include<iostream>
 using namespace std;
+void song(const char *name = "Mo.test", int times = 1);
 int main(){
-	char alarm = '\a';
-	cout << alarm << endl << "Don't do that again \a";
+	song();
 	return 0;
+}
+
+void song(const char *name, int times){
+	cout << name[times];
 }
