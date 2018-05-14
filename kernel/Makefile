@@ -6,4 +6,4 @@ obj-m += tasklet.o
 all:
 	make -C $(KERNEL) M=$(shell pwd)
 clean:
-	rm -rf *.mod.c *.order *.symvers *.o *.bak *.cmd *.ko *.tmp_versions *~
+	rm -rf *.mod.c *.order *.symvers *.o *.bak .*.cmd *.ko .tmp_versions *~
