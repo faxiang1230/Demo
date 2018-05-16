@@ -1,6 +1,7 @@
 KERNEL := /home/wangjx/work/linux-4.13.3/
 
 obj-m += mywork.o
+obj-m += wait-queue.o
 obj-m += tasklet.o
 
 all:
