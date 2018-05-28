@@ -22,6 +22,8 @@ static void registerSigHandler()
     sigaction(SIGINT, &sa, NULL);
     sigaction(SIGQUIT, &sa, NULL);
     sigaction(SIGTERM, &sa, NULL);
+    printf("sigaction SIGKILL ret:%d\n", sigaction(SIGKILL, &sa, NULL));
+    printf("sigaction SIGSTOP ret:%d\n", sigaction(SIGSTOP, &sa, NULL));
 }
 
 main()
