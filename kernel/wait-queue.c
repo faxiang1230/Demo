@@ -113,7 +113,7 @@ static int __init myfifo_init(void) {
 	init_waitqueue_head(&g_fifo->r_wait);
 	init_waitqueue_head(&g_fifo->w_wait);
 	
-	g_fifo->miscdev.name = "myfifo";
+	g_fifo->miscdev.name = "my_fifo";
 	g_fifo->miscdev.minor = MISC_DYNAMIC_MINOR;
 	g_fifo->miscdev.fops = &myfifo_ops;
 	misc_register(&g_fifo->miscdev);

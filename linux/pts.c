@@ -9,7 +9,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
-## UNFINISHED
+//## UNFINISHED
 int main()
 {
 
@@ -53,11 +53,11 @@ int main()
 		close(pts);
 		close(ptm);
 
-		execv("/bin/ls", NULL);
+		execv("/bin/bash", NULL);
 		fprintf(stderr, "- exec '/bin/ls' failed: %s (%d) -\n",
 			strerror(errno), errno);
 		exit(-1);
 	} else {
-		waitpid(pid, &status, 0);
+		return ptm;
 	}
 }
