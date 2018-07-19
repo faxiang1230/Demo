@@ -71,14 +71,14 @@ int main(int argc, char* argv[])
 		printf("get error sendmsg = %s\n",strerror(errno));
 	}
 	memset(nlh, 0, NLMSG_SPACE(MAX_PAYLOAD));
-
-	printf("waiting received!\n");
-	state = recvmsg(sock_fd, &msg, 0);
-	if (state < 0) {
-		printf("state<1");
+	while(1) {
+		printf("waiting received!\n");
+		state = recvmsg(sock_fd, &msg, 0);
+		if (state < 0) {
+			printf("state<1");
+		}
+		printf("Received message: %s\n", (char*)NLMSG_DATA(nlh));
 	}
-	printf("Received message: %s\n", (char*)NLMSG_DATA(nlh));
-
 	close(sock_fd);
 	return 0;
 }

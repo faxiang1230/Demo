@@ -21,34 +21,26 @@
 
 struct sock *sz_nlsk = NULL;
 static struct task_struct *ksz_task;
-static struct list_head zslog_list,zslog_free_list;
 static pid_t pid = 0;
-static int free_entry = 0;
-spinlock_t log_list_lock;
 static struct sk_buff_head szlog_skb_queue;
 
 DECLARE_WAIT_QUEUE_HEAD(backlog_wait);
 
-typedef struct {
-	struct list_head list;
-	struct sk_buff* skb;
-}zslog;
-
 void nlmsg_send(struct sk_buff *skb);
-void init_logger_release(void);
 static void nl_recv(struct sk_buff *skb) {
+        struct nlmsghdr *nlh;
 	if(!skb){
 		pr_err("%s recv NULL skbuff\n", __func__);
 		return;
 	}
 	//Need to check the process's cred
-	pid = NETLINK_CREDS(skb)->pid;
+	//pid = NETLINK_CREDS(skb)->pid;
+        nlh = nlmsg_hdr(skb);
+	pid = nlh->nlmsg_pid;	
 	pr_info("%d process register to szlog\n", pid);
 }
 static struct sk_buff * szlog_buffer_alloc(int payload, gfp_t gfp_mask)
 {
-        unsigned long flags;
-        struct audit_buffer *ab = NULL;
         struct nlmsghdr *nlh;
 	struct sk_buff *skb;
 
@@ -57,7 +49,7 @@ static struct sk_buff * szlog_buffer_alloc(int payload, gfp_t gfp_mask)
         if (!skb)
                 goto err;
 
-        nlh = nlmsg_put(skb, 0, 0, 0, payload, 0);
+        nlh = nlmsg_put(skb, pid, 0, NETLINK_SZLOG, payload, 0);
         if (!nlh)
                 goto out_kfree_skb;
 
@@ -102,16 +94,20 @@ static void audit_printk_skb(struct sk_buff *skb)
 int audit_log(const char *fmt, ...) {
 	va_list args;
 	struct sk_buff *skb;
-	int avail, len;
+	int avail;
 	if(!sz_nlsk) {
 		pr_err("nlsk init failed\n");
+		return -1;
+	}
+	if(pid == 0) {
+		pr_err("No one listen message\n");
 		return -1;
 	}
 	if(skb_queue_len(&szlog_skb_queue) > MAX_LOG_ENTRY_NUM) {
 		pr_notice("%s drop log\n", __func__);
 		return -1;
 	}
-	skb = szlog_buffer_alloc(MAX_MSGSIZE, GFP_KERNEL);
+	skb = szlog_buffer_alloc(MAX_MSGSIZE, GFP_ATOMIC);
 	if (!skb) {
 		pr_notice("%s fail to alloc sk_buff", __func__);
 		return -1;
@@ -129,8 +125,9 @@ int audit_log(const char *fmt, ...) {
 		skb_queue_tail(&szlog_skb_queue, skb);
 		wake_up_interruptible(&backlog_wait);
 	} else {
-		skb_queue_tail(&szlog_skb_queue, skb);
-		wake_up_interruptible(&backlog_wait);
+		//drop
+		//skb_queue_tail(&szlog_skb_queue, skb);
+		//wake_up_interruptible(&backlog_wait);
 	}
 	return 0;
 out:
@@ -153,7 +150,7 @@ static int ksz_log_server(void *dummy)
 			}
 			continue;
 		}
-		wait_event_freezable(backlog_wait, (!list_empty(&zslog_list)) || kthread_should_stop());
+		wait_event_freezable(backlog_wait, (!skb_queue_len(&szlog_skb_queue)) || kthread_should_stop());
 	}
 	return 0;
 }
@@ -161,14 +158,14 @@ void nlmsg_send(struct sk_buff *skb) {
 	netlink_unicast(sz_nlsk, skb, pid, MSG_DONTWAIT);
 	return ;
 }
-static void my_work(struct work_struct *work);
+static void test_work(struct work_struct *work);
 
-DECLARE_DELAYED_WORK(mywork, my_work);
+DECLARE_DELAYED_WORK(testwork, test_work);
 
-static void my_work(struct work_struct *work) {
+static void test_work(struct work_struct *work) {
         //printk(KERN_DEBUG "my delay work\n");
 	audit_log("hello zslog %s %d", "abcdefg", 0x12345678);
-	schedule_delayed_work(&mywork, 1000);
+	schedule_delayed_work(&testwork, 1000);
 }
 
 static int __init logger_init(void) {
@@ -195,7 +192,7 @@ static int __init logger_init(void) {
 			goto err2; 
 		}    
 	}
-	schedule_delayed_work(&mywork, 100);
+	schedule_delayed_work(&testwork, 100);
 	return 0;
 err2:
 	netlink_kernel_release(sz_nlsk);
@@ -204,7 +201,7 @@ err1:
 }
 module_init(logger_init);
 static void __exit logger_exit(void) {
-	cancel_delayed_work(&mywork);	
+	cancel_delayed_work(&testwork);	
 	kthread_stop(ksz_task);
 	netlink_kernel_release(sz_nlsk);
 }
