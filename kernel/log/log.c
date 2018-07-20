@@ -1,162 +1,62 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
-#include <linux/module.h>
-#include <linux/interrupt.h>
 #include <linux/workqueue.h>
 #include <linux/printk.h>
-#include <linux/skbuff.h>
-#include <linux/netlink.h>
-#include <net/netlink.h>
-#include <net/sock.h>
 #include <linux/string.h>
-#include <linux/freezer.h>
-#include <linux/kthread.h>
 #include <linux/list.h>
 #include <stdarg.h>
+#include <linux/miscdevice.h>
+#include <linux/moduleparam.h>
+#include <linux/module.h>
+#include <asm/uaccess.h>
+#include <linux/fs.h>
+#include <linux/sched.h>
 
-#define NETLINK_SZLOG 30
-#define MAX_MSGSIZE 1024
-#define LOG_ENTRY_SIZE 128
-#define MAX_LOG_ENTRY_NUM 64
+#define LOG_ENTRY_SIZE		128
+#define LOG_ADDR_STEP_OFFSET	7
+#define MAX_LOG_ENTRY_NUM	2048
+#define ZSLOGGER	"zslog"
+#define P2INT(x)	((unsigned long)x)
 
-struct sock *sz_nlsk = NULL;
-static struct task_struct *ksz_task;
-static pid_t pid = 0;
-static struct sk_buff_head szlog_skb_queue;
-
-DECLARE_WAIT_QUEUE_HEAD(backlog_wait);
-
-void nlmsg_send(struct sk_buff *skb);
-static void nl_recv(struct sk_buff *skb) {
-        struct nlmsghdr *nlh;
-	if(!skb){
-		pr_err("%s recv NULL skbuff\n", __func__);
-		return;
+typedef struct {
+	void *head, *tail, *highest;
+	int size;
+}logger_info;
+static unsigned long rsize,wsize;
+static logger_info logger;
+static char log_buff[MAX_LOG_ENTRY_NUM * LOG_ENTRY_SIZE];
+static int logger_size;
+static inline void *avail_log_addr(void) {
+	char *addr = logger.head;
+	if(logger.head >= logger.highest) {
+		logger.head = log_buff;
+	} else {
+		logger.head += LOG_ENTRY_SIZE;
 	}
-	//Need to check the process's cred
-	//pid = NETLINK_CREDS(skb)->pid;
-        nlh = nlmsg_hdr(skb);
-	pid = nlh->nlmsg_pid;	
-	pr_info("%d process register to szlog\n", pid);
+	if(logger.size < (MAX_LOG_ENTRY_NUM -1)) {
+		logger.size += 1;
+	} else {
+		logger.size = MAX_LOG_ENTRY_NUM -1;
+		logger.tail = logger.head;
+	}
+	wsize++;
+	return addr;
 }
-static struct sk_buff * szlog_buffer_alloc(int payload, gfp_t gfp_mask)
-{
-        struct nlmsghdr *nlh;
-	struct sk_buff *skb;
-
-
-        skb = nlmsg_new(payload, gfp_mask);
-        if (!skb)
-                goto err;
-
-        nlh = nlmsg_put(skb, pid, 0, NETLINK_SZLOG, payload, 0);
-        if (!nlh)
-                goto out_kfree_skb;
-
-        return skb;
-
-out_kfree_skb:
-        kfree_skb(skb);
-        skb = NULL;
-err:
-        return NULL;
-}
-void audit_log_vformat(struct sk_buff *skb, const char *fmt, ...)
+void audit_log(const char *fmt, ...)
 {
         va_list args;
-	int avail, len;
-                         
+	void *addr = NULL;
+
+	addr = avail_log_addr(); 
+        WARN_ON(addr > logger.highest); 
         va_start(args, fmt);
-        avail = skb_tailroom(skb);
-        if (avail == 0) {
-		pr_warn("skb no available room\n");
-                goto out;
-        }
-        len = vsnprintf(skb_tail_pointer(skb), avail, fmt, args);
-        if (len > 0)
-                skb_put(skb, len);
+        vsnprintf(addr, LOG_ENTRY_SIZE, fmt, args);
         va_end(args);
-out:
+	logger_size = logger.size;
+	//if(!printk_ratelimit())
+	//	pr_notice("%s logger head addr:%p tail:%p\n", __func__, logger.head, logger.tail);
         return;
 
-}
-static void audit_printk_skb(struct sk_buff *skb)
-{
-        struct nlmsghdr *nlh = nlmsg_hdr(skb);
-	char *data = nlmsg_data(nlh);
-
-	if (printk_ratelimit())
-		pr_notice("type=%d %s\n", nlh->nlmsg_type, data);
-	else
-		pr_notice("printk limit exceeded\n");
-}
-
-int audit_log(const char *fmt, ...) {
-	va_list args;
-	struct sk_buff *skb;
-	int avail;
-	if(!sz_nlsk) {
-		pr_err("nlsk init failed\n");
-		return -1;
-	}
-	if(pid == 0) {
-		pr_err("No one listen message\n");
-		return -1;
-	}
-	if(skb_queue_len(&szlog_skb_queue) > MAX_LOG_ENTRY_NUM) {
-		pr_notice("%s drop log\n", __func__);
-		return -1;
-	}
-	skb = szlog_buffer_alloc(MAX_MSGSIZE, GFP_ATOMIC);
-	if (!skb) {
-		pr_notice("%s fail to alloc sk_buff", __func__);
-		return -1;
-	}
-                         
-        va_start(args, fmt);
-        avail = skb_tailroom(skb);
-        if (avail == 0) {
-		pr_warn("skb no available room\n");
-                goto out;
-        }
-        vsnprintf(NLMSG_DATA(nlmsg_hdr(skb)), avail, fmt, args);
-	va_end(args);
-	if (pid) {
-		skb_queue_tail(&szlog_skb_queue, skb);
-		wake_up_interruptible(&backlog_wait);
-	} else {
-		//drop
-		//skb_queue_tail(&szlog_skb_queue, skb);
-		//wake_up_interruptible(&backlog_wait);
-	}
-	return 0;
-out:
-	kfree_skb(skb);
-	return 0;
-}
-static int ksz_log_server(void *dummy)
-{
-	struct sk_buff *skb;
-	set_freezable();
-	while (!kthread_should_stop()) {
-		skb = skb_dequeue(&szlog_skb_queue);
-		if (skb) {
-			if (pid) {
-				audit_printk_skb(skb);
-				nlmsg_send(skb);
-			} else {
-				audit_printk_skb(skb);
-				kfree_skb(skb);
-			}
-			continue;
-		}
-		wait_event_freezable(backlog_wait, (!skb_queue_len(&szlog_skb_queue)) || kthread_should_stop());
-	}
-	return 0;
-}
-void nlmsg_send(struct sk_buff *skb) {
-	netlink_unicast(sz_nlsk, skb, pid, MSG_DONTWAIT);
-	return ;
 }
 static void test_work(struct work_struct *work);
 
@@ -165,47 +65,111 @@ DECLARE_DELAYED_WORK(testwork, test_work);
 static void test_work(struct work_struct *work) {
         //printk(KERN_DEBUG "my delay work\n");
 	audit_log("hello zslog %s %d", "abcdefg", 0x12345678);
-	schedule_delayed_work(&testwork, 1000);
+	schedule_delayed_work(&testwork, 10);
+}
+static ssize_t logger_aio_write(struct file *file, const char __user * buf, size_t len, loff_t *ppos) {
+	pr_err("%s try to write to logger\n", current->comm);
+	pr_notice("%s NOTICE: empty logger\n", __func__);
+	return -1;
+}
+static ssize_t logger_read(struct file *file, char __user *buf,
+					size_t count, loff_t *pos) {
+	size_t size = (count & (~0x7f));
+	logger_size = logger.size;
+	size_t part;
+	if(logger.size == 0) {
+		pr_info("%s no log cached\n", __func__);
+		return 0;
+	}
+	//pr_notice("%s logger head addr:%p tail:%p\n", __func__, logger.head, logger.tail);
+	if(size > 0) {
+		if(size >= (logger.size * LOG_ENTRY_SIZE))
+			size = (logger.size * LOG_ENTRY_SIZE);
+
+		if((logger.tail + size) > logger.highest) {
+			part = logger.highest - logger.tail;
+			if(copy_to_user(buf, logger.tail, part) == 0) {
+				logger.tail = log_buff;
+				logger.size -= (part >> 7);
+				if(copy_to_user(buf + part, logger.tail, size - part) == 0) {
+					logger.tail += (size - part);
+					logger.size -=((size - part) >> 7);
+					pr_info("%s user copy %d bytes\n", __func__, size);
+					rsize += size;
+					return size;
+				}
+				pr_info("%s user copy part %d bytes\n", __func__, part);
+				rsize += part;
+				return part;
+			} else {
+				if(!printk_ratelimit())
+				pr_info("%s user copy failed\n", __func__);
+				goto copy_failed;
+			}
+		} else {
+			if(copy_to_user(buf, logger.tail, size) == 0) {
+				logger.tail += size;
+				logger.size -= (size >> 7);
+				//if(!printk_ratelimit())
+				//pr_info("%s user copy %d bytes\n", __func__, (int)size);
+				rsize += size;
+				pr_info("%s user copy %d bytes\n", __func__, size);
+				return size;
+			} else {
+				//if(!printk_ratelimit())
+				//pr_err("%s copy bytes to user failed\n", __func__);
+				goto copy_failed;
+			}
+		}
+	}
+	//if(!printk_ratelimit())
+		pr_err("%s invalid size\n", __func__);
+copy_failed:
+	return 0;
+}
+static int logger_open(struct inode *inode, struct file *file) {
+	//check who read the logger
+	return 0;
 }
 
+struct file_operations zslogger_fops = {
+	.read	= logger_read,
+	.write	= logger_aio_write,
+	.open	= logger_open,
+};
+static struct miscdevice zs_logger = {
+	.minor	= MISC_DYNAMIC_MINOR,
+	.name	= ZSLOGGER,
+	.fops	= &zslogger_fops,
+	.parent	= NULL,
+	.mode	= 0777,
+};
 static int __init logger_init(void) {
 	int ret = 0;
-	struct netlink_kernel_cfg cfg = {
-		.input = nl_recv,
-		.flags  = NL_CFG_F_NONROOT_RECV,
-		.groups = 0,
-	};
-
-	sz_nlsk = netlink_kernel_create(&init_net, NETLINK_SZLOG, &cfg);
-	if (sz_nlsk == NULL) {
-		pr_err("cannot initialize netlink socket in namespace");
-		ret = -ENOMEM;
+	ret = misc_register(&zs_logger);
+	if (ret < 0) {
+		pr_err("register misc device failed\n");
 		goto err1;
 	}
-	//sz_nlsk->sk_sndtimeo = MAX_SCHEDULE_TIMEOUT;
-	skb_queue_head_init(&szlog_skb_queue);
-	if (!ksz_task) {
-		ksz_task = kthread_run(ksz_log_server, NULL, "k_szlog");
-		if (IS_ERR(ksz_task)) {
-			ret = PTR_ERR(ksz_task);
-			ksz_task = NULL;
-			goto err2; 
-		}    
-	}
-	schedule_delayed_work(&testwork, 100);
+	logger.head = logger.tail = log_buff;
+	logger.highest = log_buff + ((MAX_LOG_ENTRY_NUM -1) * LOG_ENTRY_SIZE);
+	logger.size = 0;
+	wsize = rsize = 0;
+	pr_err("log_buff addr:%p", log_buff);
+	schedule_delayed_work(&testwork, 1000);
 	return 0;
-err2:
-	netlink_kernel_release(sz_nlsk);
 err1:
 	return ret;
 }
 module_init(logger_init);
 static void __exit logger_exit(void) {
 	cancel_delayed_work(&testwork);	
-	kthread_stop(ksz_task);
-	netlink_kernel_release(sz_nlsk);
+	misc_deregister(&zs_logger);
 }
 module_exit(logger_exit);
+module_param(logger_size, int, 0444);
+module_param(wsize, ulong, 0444);
+module_param(rsize, ulong, 0444);
 MODULE_AUTHOR("Jianxing.Wang");
 MODULE_DESCRIPTION("ZShield Log");
 MODULE_LICENSE("GPL v2");
