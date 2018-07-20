@@ -19,7 +19,7 @@
 
 #define DEBUG 1
 typedef struct {
-	unsigned int w_off, r_off;
+	void *head, *tail, *highest;
 	int size;
 	unsigned long rsize, wsize;
 	spinlock_t lock;
@@ -27,15 +27,18 @@ typedef struct {
 static logger_info logger;
 static char log_buff[MAX_LOG_ENTRY_NUM * LOG_ENTRY_SIZE];
 static inline void *avail_log_addr(void) {
-	void *addr = (logger.w_off << LOG_ADDR_STEP_OFFSET) + log_buff;;
+	char *addr = logger.head;
 	spin_lock(&logger.lock);
-	logger.w_off = (logger.w_off + 1) % MAX_LOG_ENTRY_NUM;
-	if(++logger.size > MAX_LOG_ENTRY_NUM) {
-		logger.size = MAX_LOG_ENTRY_NUM;
-		logger.r_off = logger.w_off;
-		//if(!printk_ratelimited())
-			pr_notice("%s log cache is full\n", __func__);
-		
+	if(unlikely(logger.head >= logger.highest)) {
+		logger.head = log_buff;
+	} else {
+		logger.head += LOG_ENTRY_SIZE;
+	}
+	if(logger.size < (MAX_LOG_ENTRY_NUM -1)) {
+		logger.size += 1;
+	} else {
+		logger.size = MAX_LOG_ENTRY_NUM -1;
+		logger.tail = logger.head + LOG_ENTRY_SIZE;
 	}
 	spin_unlock(&logger.lock);
 	return addr;
@@ -46,6 +49,7 @@ void audit_log(const char *fmt, ...)
 	void *addr = NULL;
 
 	addr = avail_log_addr(); 
+        WARN_ON(addr > logger.highest); 
         va_start(args, fmt);
         vsnprintf(addr, LOG_ENTRY_SIZE, fmt, args);
         va_end(args);
@@ -65,70 +69,67 @@ DECLARE_DELAYED_WORK(testwork4, test_work);
 
 static void test_work(struct work_struct *work) {
         //printk(KERN_DEBUG "my delay work\n");
-	audit_log("hello zslog %s %d\n", "abcdefg", 0x12345678);
-	schedule_delayed_work(work, 100);
+	audit_log("hello zslog %s %d", "abcdefg", 0x12345678);
+	schedule_delayed_work(work, 10);
 }
 #endif
 static ssize_t logger_aio_write(struct file *file, const char __user * buf, size_t len, loff_t *ppos) {
 	pr_err("%s try to write to logger\n", current->comm);
 	pr_notice("%s NOTICE: empty logger\n", __func__);
-	logger.r_off = logger.w_off;
+	logger.tail = logger.head;
 	logger.size = 0;
-	return 0;
+	return -1;
 }
 static ssize_t logger_read(struct file *file, char __user *buf,
 					size_t count, loff_t *pos) {
-	size_t size = (count >> LOG_ADDR_STEP_OFFSET);
-	size_t part1, part2;
+	size_t size = (count & (~0x7f));
+	size_t part;
 	if(logger.size == 0) {
 		pr_info("%s no log cached\n", __func__);
 		return 0;
 	}
 	//pr_notice("%s logger head addr:%p tail:%p\n", __func__, logger.head, logger.tail);
 	if(size > 0) {
-		if(size >= logger.size)
-			size = logger.size;
+		if(size >= (logger.size * LOG_ENTRY_SIZE))
+			size = (logger.size * LOG_ENTRY_SIZE);
 
-		if((logger.r_off + size) > MAX_LOG_ENTRY_NUM) {
-			part1 = MAX_LOG_ENTRY_NUM - logger.r_off;
-			part2 = size - part1;
-			if(copy_to_user(buf, (logger.r_off << LOG_ADDR_STEP_OFFSET) + log_buff, (part1 << LOG_ADDR_STEP_OFFSET)) == 0) {
-
+		if((logger.tail + size) > logger.highest) {
+			part = logger.highest - logger.tail;
+			if(copy_to_user(buf, logger.tail, part) == 0) {
 				spin_lock(&logger.lock);
-				logger.r_off = 0;
-				logger.size -= part1;
+				logger.tail = log_buff;
+				logger.size -= (part >> 7);
 				spin_unlock(&logger.lock);
-				logger.rsize += part1;
-
-				if(copy_to_user(buf + (part1 << LOG_ADDR_STEP_OFFSET), log_buff, (part2 << LOG_ADDR_STEP_OFFSET)) == 0) {
+				if(copy_to_user(buf + part, logger.tail, size - part) == 0) {
 					spin_lock(&logger.lock);
-					logger.r_off += part2;
-					logger.size -= part2;
+					logger.tail += (size - part);
+					logger.size -=((size - part) >> 7);
 					spin_unlock(&logger.lock);
 					//pr_info("%s user copy %d bytes\n", __func__, size);
-					logger.rsize += part2;
-					return (size << LOG_ADDR_STEP_OFFSET);
+					logger.rsize += size;
+					return size;
 				}
 				//pr_info("%s user copy part %d bytes\n", __func__, part);
-				return (part1 << LOG_ADDR_STEP_OFFSET);
+				logger.rsize += part;
+				return part;
 			} else {
 				//if(!printk_ratelimit())
 				//pr_info("%s user copy failed\n", __func__);
 				goto copy_failed;
 			}
 		} else {
-			if(copy_to_user(buf, (logger.r_off << LOG_ADDR_STEP_OFFSET) + log_buff, size << LOG_ADDR_STEP_OFFSET) == 0) {
+			if(copy_to_user(buf, logger.tail, size) == 0) {
 
 				spin_lock(&logger.lock);
-				logger.r_off += size;
-				logger.size -= size;
+				logger.tail += size;
+				logger.size -= (size >> 7);
 				spin_unlock(&logger.lock);
 
 				//if(!printk_ratelimit())
 				//pr_info("%s user copy %d bytes\n", __func__, (int)size);
 				logger.rsize += size;
 				pr_info("%s user copy %d bytes\n", __func__, size);
-				return (size << LOG_ADDR_STEP_OFFSET);
+				return size;
 			} else {
 				//if(!printk_ratelimit())
 				//pr_err("%s copy bytes to user failed\n", __func__);
@@ -137,8 +138,7 @@ static ssize_t logger_read(struct file *file, char __user *buf,
 		}
 	}
 	//if(!printk_ratelimit())
-	pr_err("%s min size is 128 bytes,failed to read\n", __func__);
-	return -1;
+		pr_err("%s invalid size\n", __func__);
 copy_failed:
 	return 0;
 }
@@ -167,7 +167,8 @@ static int __init logger_init(void) {
 		goto err1;
 	}
 	spin_lock_init(&logger.lock);
-	logger.w_off = logger.r_off = 0;
+	logger.head = logger.tail = log_buff;
+	logger.highest = log_buff + ((MAX_LOG_ENTRY_NUM -1) * LOG_ENTRY_SIZE);
 	logger.size = 0;
 	logger.wsize = logger.rsize = 0;
 #if DEBUG
