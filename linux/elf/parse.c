@@ -168,7 +168,7 @@ void main(int argc, char **argv)
 		else if(!strcmp(&stringtab[shdr[i].sh_name],".got.plt")){}
 		else if(!strcmp(&stringtab[shdr[i].sh_name],".symtab")){}
 		else if(!strcmp(&stringtab[shdr[i].sh_name],".rela.dyn")){}
-		if(shdr[i].sh_type == SHT_RELA) {
+		if(shdr[i].sh_type == SHT_REL) {
 			printf("%s Relocatable table info\n", &stringtab[shdr[i].sh_name]);	
 			printf("%16s%16s%16s%16s\n", "Offset", "Info", "Type", "SYMBOL");
 			for(index = 0; index < shdr[i].sh_size; index += sizeof(Elf64_Rel)) {
@@ -180,7 +180,18 @@ void main(int argc, char **argv)
 				printf("%16s", mem + shdr[shdr[shdr[i].sh_link].sh_link].sh_offset + sym->st_name);
 				printf("\n");
 			}
-		} else if(shdr[i].sh_type == SHT_REL) {
+		} else if(shdr[i].sh_type == SHT_RELA) {
+			printf("%s Relocatable table info\n", &stringtab[shdr[i].sh_name]);	
+			printf("%16s%16s %16s%16s\n", "Offset", "Info", "Type", "SYMBOL");
+			for(index = 0; index < shdr[i].sh_size; index += sizeof(Elf64_Rela)) {
+				rela = (Elf64_Rela *)(mem + shdr[i].sh_offset + index);
+				printf("%16x", rela->r_offset);
+				printf("%16x ", rela->r_info);
+				printf("%16s", rel_type[ELF64_R_TYPE(rela->r_info)]);
+				sym = (Elf64_Sym *)(mem + shdr[shdr[i].sh_link].sh_offset + (sizeof(Elf64_Sym) * ELF64_R_SYM(rela->r_info)));
+				printf("%16s", mem + shdr[shdr[shdr[i].sh_link].sh_link].sh_offset + sym->st_name);
+				printf("\n");
+			}
 		} else if(shdr[i].sh_type == SHT_SYMTAB || shdr[i].sh_type == SHT_DYNSYM) {
 			printf("%s Symbol table info\n", &stringtab[shdr[i].sh_name]);
 			printf("%16s%16s%16s%16s%16s%16s%16s\n", "Type", "Bind", "Ndx","Visible", "Value", "Size", "Name");
