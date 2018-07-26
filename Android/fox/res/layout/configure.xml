@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical" >
+
+    <TableLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_weight="0.17" >
+
+        <TableRow
+            android:id="@+id/tableRow1"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" >
+
+            <Button
+                android:id="@+id/ipbtn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="isp" >
+            </Button>
+
+            <EditText
+                android:id="@+id/ipEdit"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ems="10" >
+            </EditText>
+        </TableRow>
+
+        <TableRow
+            android:id="@+id/tableRow2"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" >
+
+            <Button
+                android:id="@+id/ipbtn1"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="webip" >
+            </Button>
+
+            <EditText
+                android:id="@+id/webiptext"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ems="10">
+            </EditText>
+        </TableRow>
+
+        <TableRow
+            android:id="@+id/tableRow3"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" >
+
+            <Button
+                android:id="@+id/ipbtn2"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="misc" >
+            </Button>
+                        <EditText
+                android:id="@+id/misctext"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ems="10"
+                android:text="/dev/bfx" >
+            </EditText>
+        </TableRow>
+
+        <TableRow
+            android:id="@+id/tableRow4"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" >
+
+            <Button
+                android:id="@+id/savebtn"
+                android:layout_width="100dp"
+                android:layout_height="wrap_content"
+                android:text="Save"
+                 >
+            </Button>
+
+            <Button
+                android:id="@+id/cancelbtn"
+                android:layout_width="50dp"
+                android:layout_height="wrap_content"
+                android:text="Cancel" >
+            </Button>
+        </TableRow>
+    </TableLayout>
+
+</LinearLayout>
