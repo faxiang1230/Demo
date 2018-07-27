@@ -81,7 +81,51 @@ const char *const rel_type[] =
 "X86_64_RELATIVE64",
 "X86_64_NUM",
 };
-
+const char * dynamic_type[] = {
+"NULL",         
+"NEEDED",       
+"PLTRELSZ",     
+"PLTGOT",   
+"HASH",     
+"STRTAB",       
+"SYMTAB",     
+"RELA",     
+"RELASZ",       
+"RELAENT",     
+"STRSZ",    
+"SYMENT",      
+"INIT",     
+"FINI",       
+"SONAME",       
+"RPATH",        
+"SYMBOLIC",     
+"REL",   
+"RELSZ",        
+"RELENT",      
+"PLTREL",     
+"DEBUG",     
+"TEXTREL",      
+"JMPREL",    
+"BIND_NOW",     
+"INIT_ARRAY",   
+"FINI_ARRAY", 
+"INIT_ARRAYSZ", 
+"FINI_ARRAYSZ",
+"RUNPATH",
+"FLAGS",    
+"ENCODING",     
+"PREINIT_ARRAY", 
+"PREINIT_ARRAYSZ",
+"NUM",
+}; 
+static const char *get_dynamic_type(Elf64_Sxword tag){
+	if(tag <= DT_NUM)
+		return dynamic_type[tag];
+	else {
+		return "OS Spec";
+	}
+	return "NULL";
+}
 void main(int argc, char **argv)
 {
 	int fd = 0, i, ret;
@@ -96,6 +140,7 @@ void main(int argc, char **argv)
 	Elf64_Sym *sym;
 	Elf64_Rel *rel;
 	Elf64_Rela *rela;
+	Elf64_Dyn *dynamic;
 
 	if(argc < 2) {
 		perror("CMD:elf-parse file		Error\n");
@@ -168,6 +213,7 @@ void main(int argc, char **argv)
 		else if(!strcmp(&stringtab[shdr[i].sh_name],".got.plt")){}
 		else if(!strcmp(&stringtab[shdr[i].sh_name],".symtab")){}
 		else if(!strcmp(&stringtab[shdr[i].sh_name],".rela.dyn")){}
+		
 		if(shdr[i].sh_type == SHT_REL) {
 			printf("%s Relocatable table info\n", &stringtab[shdr[i].sh_name]);	
 			printf("%16s%16s%16s%16s\n", "Offset", "Info", "Type", "SYMBOL");
@@ -206,6 +252,18 @@ void main(int argc, char **argv)
 				printf(" %s", mem + shdr[shdr[i].sh_link].sh_offset + sym->st_name);
 				printf("\n");
 			}
+		} else if(shdr[i].sh_type == SHT_DYNAMIC) {
+			printf("%s Dynamic table info\n", &stringtab[shdr[i].sh_name]);
+			printf("%16s%16s\n", "Type", "Value");
+			for(index = 0; index < shdr[i].sh_size; index += sizeof(Elf64_Dyn)) {
+				dynamic = (Elf64_Dyn *)(mem + shdr[i].sh_offset + index);
+				printf("%16s ", get_dynamic_type(dynamic->d_tag));
+				if(dynamic->d_tag == DT_NEEDED) {
+					//tmp = dynamic->d_un.d_val;
+				}
+				printf("\n");
+			}
+				
 		}
 	}
 	printf("\nProgram header list\n\n");
