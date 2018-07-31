@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<resources>
+    <string name="app_name">Configure</string>
+    <string name="title_section1">sys config</string>
+    <string name="title_section2">info log</string>
+    <string name="title_section3">debug log</string>
+    <string name="hello_world">Hello world!</string>
+    <string name="action_settings">Settings</string>
+</resources>
