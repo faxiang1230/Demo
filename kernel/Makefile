@@ -1,4 +1,5 @@
-KERNEL := /home/wangjx/work/linux-4.13.3/
+KERNEL := /lib/modules/$(shell uname -r)/build
+#KERNEL := /home/wangjx/work/linux-4.13.3/
 
 obj-m += mywork.o
 obj-m += wait-queue.o

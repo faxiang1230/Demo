@@ -3,9 +3,12 @@
 #include <linux/module.h>
 #include <linux/interrupt.h>
 #include <linux/printk.h>
+//#include <>
+#include <linux/sched.h>
 void run_task(unsigned long value);
 DECLARE_TASKLET(mytasklet, run_task, 0);
 void run_task(unsigned long value) {
+	printk(KERN_DEBUG "%s pid is:%u %s", __func__, current->pid, current->comm);
 	printk(KERN_DEBUG "my tasklet\n");
 }
 static int __init my_tasklet_init(void) {
