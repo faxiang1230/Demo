@@ -1,0 +1,5 @@
+1.kprobes正常情况下是无法修改返回值的，可以作为审计，但是缺乏控制功能。
+http://phrack.org/issues/67/1.html 提供了先hack
+kprobe之后允许返回值生效的一种方法
+2.正常的tpe(trusted path excution)使用ftrace框架，同理返回值也不会影响正常的业务，
+他的控制是通过杀死进程来实现的，但是很显然很多时候我们没有必要杀死进程，只需要阻止进程行为就好了
