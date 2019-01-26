@@ -1,0 +1,9 @@
+问题:在netfilter中获取到对应进程的信息
+
+过程:目前的方式是通过sk_buff->sock->socket->file的信息找到对应的进程，
+里面主要有两个和标识有关的应用:cred,fown_struct.
+cred是用户uid,gid的信息,而通过fown_struct->pid之类可以获取到task_struct,
+但是是有限制的。
+
+结论:需要对socket fd使用fcntl(fd, F_SETOWN, getpid())操作，否则
+pid是
