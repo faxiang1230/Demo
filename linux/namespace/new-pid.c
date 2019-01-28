@@ -7,7 +7,7 @@
 
 #include<stdio.h>
 #define _GNU_SOURCE
-#include <sched.h>
+#include <linux/sched.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <sys/wait.h>

@@ -7,7 +7,7 @@
 
 #include<stdio.h>
 #define _GNU_SOURCE
-#include <sched.h>
+#include <linux/sched.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <sys/wait.h>
@@ -19,9 +19,10 @@ static char child_stack[STACK_SIZE];
 int child_main(void *arg) 
 { 
 	printf("child\n");
-	system("mount -t proc none /proc");
-	//system("mount -t dev dev /dev");
 	sethostname("container",10);
+	system("mount -t proc proc /proc");
+	system("mount -t devtmpfs dev /dev");
+	system("mount -t devpts devpts /dev/pts");
 	execlp("/bin/bash","bash",NULL,NULL); 
 	return 1;
 }
@@ -33,5 +34,7 @@ int main()
    	if (child_pid == -1)
 	   	errExit("clone");
    	wait(NULL);
+	system("mount -t proc proc /proc");
+	system("mount -t dev dev /dev");
    	return 0;
 } 
