@@ -71,11 +71,17 @@ int slist_splice_tail(slist_t *entry, slist_t *head)
 }
 slist_t *slist_find_mid_node(slist_t *head)
 {
-	slist_t *fast = head, *slow = head;
+	slist_t *fast = head->next, *slow = head->next, *slowprev = NULL;
 
 	while(fast && fast->next) {
 		fast = fast->next->next;
+		slowprev = slow;
 		slow = slow->next;
+	}
+	if (!fast) {
+		printf("middle node %d %d\n", slowprev->val, slow->val);	
+	} else if (!fast->next) {
+		printf("middle node:%d\n", slow->val);
 	}
 	return slow;
 }
