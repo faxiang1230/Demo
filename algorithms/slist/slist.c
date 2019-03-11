@@ -2,43 +2,39 @@
     > File Name: slist.c
     > Author: wangjx
  ************************************************************************/
-#include <stdio.h>
-#include <stdlib.h>
-
-typedef struct slist {
-	char val;
-	struct slist *next;
-}slist_t;
-
-int slist_append(slist_t **head, char value)
+#include "slist.h"
+int slist_append(slist_t *head, char value)
 {
 	slist_t	*list = (slist_t *)malloc(sizeof(slist_t));
 	list->val = value;
-	if (*head == NULL) {
-		*head = list;
-	} else {
-		slist_t *prev = *head->next;
-		while(prev->next)
-			prev->next = prev->next->next;
 
-		prev->next = list;
-	}
+	slist_t *prev = head;
+	while(prev->next)
+		prev = prev->next;
+
+	prev->next = list;
+
 	return 1;
 }
 
-int slist_reverse(slist_t **head)
+int slist_reverse(slist_t *head)
 {
-	if (!*head)
-		return false;
-
-	slist_t *prev = NULL, *next = head;
-	while(next) {
-		slist_t *tmp = next->next;
+	slist_t *prev = head->next, *next = prev->next, *nnext = NULL, *tmp = NULL;
+	prev->next = NULL;
+	while(next && next->next) {
+		tmp = next->next;
+		nnext = next->next->next;
 		next->next = prev;
 		prev = next;
 		next = tmp;
 	}
-	*head = prev;
+	if (next) {
+		next->next = prev;
+		head->next = next;
+	} else {
+		head->next = prev;
+	}
+	return 1;
 }
 int slist_add_tail(slist_t *tail, slist_t *entry) {
 	tail->next = entry;
@@ -48,7 +44,7 @@ int slist_splice(slist_t *s1, slist_t *s2, slist_t **new_head)
 	slist_t *head1 = s1, *head2 = s2;
 	slist_t *head = NULL;
 	while(head1 && head2) {
-		if (head1->value > head2->value) {
+		if (head1->val > head2->val) {
 			if (head)
 				head->next = head2;
 			else
@@ -67,7 +63,7 @@ int slist_splice(slist_t *s1, slist_t *s2, slist_t **new_head)
 	else
 		head->next = head2;
 
-	return *new_head = head;
+	return *new_head == head;
 }
 int slist_splice_tail(slist_t *entry, slist_t *head)
 {
@@ -82,4 +78,24 @@ slist_t *slist_find_mid_node(slist_t *head)
 		slow = slow->next;
 	}
 	return slow;
+}
+int slist_delete(slist_t *head, int val)
+{
+	slist_t *prev = head, *tmp = NULL;
+	for (; prev && prev->next; prev = prev->next) {
+		if (prev->next->val == val) {
+			tmp = prev->next;
+			prev->next = tmp->next;
+			free(tmp);
+		}
+	}
+	return 0;
+}
+void slist_show(slist_t *head)
+{
+	slist_t *tmp = NULL;
+	for (tmp = head->next; tmp; tmp = tmp->next) {
+		printf("%d ", tmp->val);
+	}
+	printf("\n");
 }
