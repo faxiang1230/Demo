@@ -12,10 +12,12 @@ void merge(int *array, int left, int right) {
 	int middle = (right + left) / 2;
 	int begin1 = left, begin2 = middle + 1;
 	int k = 0;
+#if 0
 	printf("Befor merge left:%d right:%d\n", left, right);
 	for(int x = left; x <= right; x++)
 		printf("%d ", array[x]);
 	printf("\n");
+#endif
 	while(begin1 <= middle && begin2 <= right) {
 		if(array[begin1] > array[begin2]){
 			address[k++] = array[begin2++];
@@ -39,11 +41,12 @@ void merge(int *array, int left, int right) {
 }
 void merge_sort(int *array, int left, int right) {
 	int middle;
+#if 0
 	printf("Befor sort left:%d right:%d\n", left, right);
 	for(int x = left; x <= right; x++)
 		printf("%d ", array[x]);
 	printf("\n");
-
+#endif
 	middle = (right + left) / 2;
 	if(left < right) {
 		if(middle >= left && middle <= right) {

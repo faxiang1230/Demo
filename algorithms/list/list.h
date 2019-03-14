@@ -11,7 +11,7 @@ struct list_head {
 	int val;
 };
 #define LIST_HEAD(x)	struct list_head x = {.prev = &x, .next = &x, .val = 0}
-int list_add(struct list_head *head, int val)
+int list_add_tail(struct list_head *head, int val)
 {
 	struct list_head *node = calloc(1, sizeof(struct list_head));
 	node->val = val;
@@ -25,6 +25,34 @@ int list_add(struct list_head *head, int val)
 	node->next = head;
 	return 0;
 }
+int list_del_tail(struct list_head *head)
+{
+	struct list_head *prev = head->prev;
+	if (prev == head)
+		return -1;
+	int val = prev->val;
+	prev->prev->next = head;
+	head->prev = prev->prev;
+	free(prev);
+
+	return val;
+}
+int list_del_head(struct list_head *head)
+{
+	struct list_head *next = head->next;
+	if (next == head)
+		return -1;
+	int val = next->val;
+	next->next->prev = head;
+	head->next = next->next;
+	free(next);
+
+	return val;
+}
+#define stack_push(x,y) list_add_tail(x, y)
+#define stack_pop(x) list_del_tail(x)
+#define queue_in(x,y) list_add_tail(x, y)
+#define queue_out(x) list_del_head(x)
 struct list_head *list_find(struct list_head *head, int val)
 {
 	struct list_head *tmp = NULL;
