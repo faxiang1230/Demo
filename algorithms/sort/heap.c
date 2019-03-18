@@ -25,6 +25,7 @@ void sort(int* array, int len) {
 		adjust(array, 0, end);
 		showArray(array, 0, end);
 	}
+	showArray(array, 0, len);
 }
 void init(int* array, int len) {
 	for (int i = len / 2 - 1; i >= 0; i--) {
