@@ -1,0 +1,1 @@
+gcc sms4-test.c sm/sms4_common.c sm/sms4_enc.c sm/sms4_setkey.c

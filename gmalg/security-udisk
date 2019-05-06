@@ -1,0 +1,80 @@
+1.u盘插入
+2.检测U盘布局
+3.初始化挂载
+4.
+
+{
+char magic[8];		"71 70 14 81 67 04 17 74"
+u64_t udisk_index;  //ｕ盘标识
+char encrypt_alg; //加密算法
+char fs_type;  //文件系统类型
+u32_t block_size; //逻辑块大小
+u64_t first_block;  //第一个逻辑块偏移
+u64_t backup_block;  //备份逻辑块偏移
+}
+
+5.远程存储秘钥
+6.
+
+1603 Mar 27 20:15:42 linux-T480 kernel: [177383.820068] device-mapper: table: 253:0: crypt: IV mechanism required                              
+1604 Mar 27 20:15:42 linux-T480 kernel: [177383.820073] device-mapper: ioctl: error adding target to table
+1605 Mar 27 20:15:54 linux-T480 kernel: [177396.270089] device-mapper: table: 253:0: crypt: IV mechanism required
+1606 Mar 27 20:15:54 linux-T480 kernel: [177396.270099] device-mapper: ioctl: error adding target to table
+
+1.移植SMS4
+
+格式化:
+sudo cryptsetup luksFormat /dev/sdd testkey
+
+挂载:
+mount -o loop,offset=$((172*512)) archlinux-2016.03.01-dual.iso /mnt
+
+内核版本:
+2.6.4–2.6.39, 3.0–3.19, 4.0–4.20, 5.0, 5.1-rc+HEAD
+
+lib/crypto_backend/crypto_cipher_kernel.c 
+
+块加密只能使用对称加密算法，不能使用块加密和简单一次加密
+
+sudo cryptsetup --key-file=testkey -c sm4-ecb -s 128 luksFormat /dev/sdd
+
+
+使用dmsetup手动挂载成device mapper:
+https://gitlab.com/cryptsetup/cryptsetup/wikis/DMCrypt
+dmsetup create dm --table "0 123699192 crypt sm4-ecb e8cfa3dbfe373b536be43c5637387786 0 /dev/sdc 8"
+
+
+1.偏移4096将sdd挂载到loop0
+losetup -o 4096 /dev/loop0 /dev/sdd
+2.使用dm加密
+sudo dmsetup create dm --table "0 123699192 crypt sm4-ecb e8cfa3dbfe373b536be43c5637387786 0 /dev/loop0 0"
+3.格式化分区
+mkfs.exfat /dev/mapper/dm
+
+4.验证加密和偏移
+
+sudo hexdump -n 4096 -s 4096 -C /dev/sdd
+00001000  66 d5 9c 35 de e2 10 02  fb 92 c4 ba 6b 94 b9 6f  |f..5........k..o|
+sudo hexdump -n 4096 -C /dev/loop0
+00000000  66 d5 9c 35 de e2 10 02  fb 92 c4 ba 6b 94 b9 6f  |f..5........k..o|
+两个设备的偏移确实是4096(8 sectors)
+-------------------------------------------------------------------------------------------------
+sudo hexdump -n 4096 -s 4096 -C /dev/mapper/dm 
+00001000  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00  |................|
+000011f0  00 00 00 00 00 00 00 00  00 00 00 00 00 00 55 aa  |..............U.|
+00001200  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00  |................|
+00001600  f4 f7 60 27 f4 f7 60 27  f4 f7 60 27 f4 f7 60 27  |..`'..`'..`'..`'|
+00001800  eb 76 90 45 58 46 41 54  20 20 20 00 00 00 00 00  |.v.EXFAT   .....|
+-------------------------------------------------------------------------------------------------
+查看普通镜像的头:
+losetup /dev/loop1 vir.img
+mkfs.exfat /dev/loop1
+
+sudo hexdump -n 4096 -C /dev/loop1
+00000000  eb 76 90 45 58 46 41 54  20 20 20 00 00 00 00 00  |.v.EXFAT   .....|
+这部分使用sm4加密后内容如下，/dev/sdd中看到的确实是加密过后的内容
+66 d5 9c 35 de e2 10 02  fb 92 c4 ba 6b 94 b9 6f
+-------------------------------------------------------------------------------------------------
+
+遗留问题:
+dd device mapper设备中会有前面1.5k的附加内容
