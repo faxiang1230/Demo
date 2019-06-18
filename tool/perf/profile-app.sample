@@ -1,0 +1,2 @@
+perf record -p pid --call-graph dwarf
+perf report
