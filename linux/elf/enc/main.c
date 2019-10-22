@@ -1,26 +1,5 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <assert.h>
-#include <stdarg.h>
-       #include <sys/types.h>
-       #include <sys/stat.h>
-       #include <fcntl.h>
-#include <elf.h>
-#include <unistd.h>
-#include <sys/mman.h>
-#include "md5.h"
+#include "common.h"
 
-#define MAX_DATA    (1024 * 1024)
-#define STUB_FILE	"mystub"
-typedef struct {
-    int payload_len;
-    int key_len;
-    char digest[64];
-    char key[64];
-    char inter[64];
-    char data[MAX_DATA];
-}payload_t;
 void enc_data(unsigned char *data, int len, unsigned char *key, int key_len)
 {
 
@@ -59,7 +38,7 @@ void main(int argc, char **argv)
 	char *mem = NULL;
 
 	if (argc < 5) {
-		printf("%s infile outfile interperter key", argv[0]);
+		printf("%s infile outfile interperter key\n", argv[0]);
 		exit(-1);
 	}
 
