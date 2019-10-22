@@ -1,5 +1,7 @@
 #include "common.h"
-payload_t payload __attribute__((section(".data"))) = {0x00};
+payload_t payload __attribute__((section(".data")));
+void print_hex(unsigned char *buf, int len)
+{}
 void main()
 {
 	pid_t pid;

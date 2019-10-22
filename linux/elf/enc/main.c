@@ -14,21 +14,44 @@ void run_cmd(const char *fmt, ...)
 	va_end(args);
 	system(printf_buf);
 }
-int resolve_symbol(char *sym, char *mem)
+int resolve_symbol(char *symbol, char *mem)
 {
-	char *strtab = NULL;
-	int i = 0;
+	char *strtab = NULL, *str = NULL;
+	int i = 0, dataoffset = 0, j = 0;
+	long long virt = 0;
 	Elf64_Ehdr *hdr = (Elf64_Ehdr *)mem;
 	Elf64_Shdr *shdr = (Elf64_Shdr *)(mem + hdr->e_shoff);
+	Elf64_Sym *sym = NULL;
 	strtab = &mem[shdr[hdr->e_shstrndx].sh_offset];
 
 	for (i = 1; i < hdr->e_shnum; i++) {
-		printf("section:%s\n", &strtab[shdr[i].sh_name]);
+		//printf("section:%s\n", &strtab[shdr[i].sh_name]);
 		if (strcmp(&strtab[shdr[i].sh_name], ".data") == 0)
 			break;
 	}
 	printf("section:%s offset:%d\n", &strtab[shdr[i].sh_name], shdr[i].sh_offset);
-	return shdr[i].sh_offset;
+
+	dataoffset = shdr[i].sh_offset;
+	virt = shdr[i].sh_addr;
+    /*
+       for (i = 1; i < hdr->e_shnum; i++) {
+       if (strcmp(&strtab[shdr[i].sh_name], ".strtab") == 0)
+       break;
+       }
+       str = shdr[i].sh_offset;
+       */
+
+    for (i = 1; i < hdr->e_shnum; i++) {
+        if (strcmp(&strtab[shdr[i].sh_name], ".symtab") == 0) {
+            sym = (Elf64_Sym *)(mem + shdr[i].sh_offset);
+            str = mem + shdr[shdr[i].sh_link].sh_offset;
+            for (j = 0; j < shdr[i].sh_size/sizeof(Elf64_Sym); j++) {
+                if(strcmp(str + sym[j].st_name, symbol) == 0)
+                    virt = sym[j].st_value - virt;
+            }
+        }
+    }
+    return dataoffset + virt;
 }
 void main(int argc, char **argv)
 {
@@ -73,7 +96,7 @@ void main(int argc, char **argv)
 	printf("before %p after:%p\n", mem+offset, ret);
 	close(fd);
 
-	return 0;
+	return;
 err:
 	if (fd > 0)
 		close(fd);
