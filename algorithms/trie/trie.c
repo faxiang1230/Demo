@@ -127,9 +127,10 @@ void main()
 	trie_insert(tr, "/home/linux/test");
 	trie_insert(tr, "/home/root/test");
 	trie_insert(tr, "/home/root/test1");
-	trie_insert(tr, "/home/linux/bin");
+	trie_insert(tr, "/home/linux/bin/");
 	trie_insert(tr, "/bin");
 	trie_insert(tr, "/bin/lib");
 	trie_insert(tr, "/lib64");
+	trie_insert(tr, "/lib64/");
 	tire_show(tr);
 }

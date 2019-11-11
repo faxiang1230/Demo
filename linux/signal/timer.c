@@ -146,7 +146,7 @@ static void sig_handler(int sig, siginfo_t *si, void *uc)
 
 		itime.it_value.tv_sec = task_head->expire.tv_sec;
 		itime.it_value.tv_nsec = task_head->expire.tv_nsec;
-		//my_printf("%s %d prepare timer_settime %d\n", __func__, __LINE__, itime.it_value.tv_sec);
+		my_printf("%s %d prepare timer_settime %d\n", __func__, __LINE__, itime.it_value.tv_sec);
 		ret = timer_settime(timerid, TIMER_ABSTIME, &itime, NULL);
 		if (ret < 0)
 			my_printf("hello timer_settime return %s\n", strerror(errno));
@@ -160,7 +160,6 @@ static void sig_handler(int sig, siginfo_t *si, void *uc)
 	} else if (task->task_type == ONCE_TYPE) {
 		free(task);
 	}
-	//signal(sig, SIG_IGN);
 }
 void task0(){
 	my_printf("%s\n", __func__);
