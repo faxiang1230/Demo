@@ -14,15 +14,10 @@ node_t *new_node(void)
 	return calloc(1, sizeof(node_t));
 }
 #define max(x)	(x->left_height > x->right_height?x->left_height:x->right_height)
-inline int MAX(node_t *left, node_t *right) {
-	if(left == NULL && right == NULL)
-		return 0;
-	else if(left == NULL)
-		return max(right);
-	else if(right == NULL)
-		return max(left);
-	else
-		return max(left)>max(right)?max(left):max(right);
+int MAX(node_t *node) {
+	if (node == NULL)
+		return -1;
+	return max(node);
 }
 
 void root_left_rotate(node_t *r)
@@ -38,8 +33,8 @@ void root_left_rotate(node_t *r)
 	r->parent = right;
 	right->left = r;
 
-	r->right_height = max(r->right) + 1;
-	right->left_height = max(right->left) + 1;
+	r->right_height = MAX(r->right) + 1;
+	right->left_height = MAX(right->left) + 1;
 }
 void root_right_rotate(node_t *r)
 {
@@ -53,8 +48,8 @@ void root_right_rotate(node_t *r)
 	left->right =r;
 	r->parent = left;
 
-	r->left_height = max(r->left) + 1;
-	left->right_height = max(left->right) + 1;
+	r->left_height = MAX(r->left) + 1;
+	left->right_height = MAX(left->right) + 1;
 }
 void left_rotate(node_t *p)
 {
@@ -66,11 +61,12 @@ void left_rotate(node_t *p)
 	right->parent = p->parent;
 
 	p->right = right->left;
-	right->left->parent = p;
+	if(right->left)
+		right->left->parent = p;
 
-	p->right_height = max(p->right) + 1;
-	right->left_height = max(right->left) + 1;
-	right->parent->right_height = max(right) + 1;
+	p->right_height = MAX(p->right) + 1;
+	right->left_height = MAX(right->left) + 1;
+	right->parent->right_height = MAX(right) + 1;
 }
 void right_rotate(node_t *p)
 {
@@ -87,39 +83,45 @@ void right_rotate(node_t *p)
 	p->parent = left;
 	left->right = p;
 
-	p->left_height = max(p->left) + 1;
-	left->right_height = max(left->right) + 1;
-	left->parent->left_height = max(left) + 1;
+	p->left_height = MAX(p->left) + 1;
+	left->right_height = MAX(left->right) + 1;
+	left->parent->left_height = MAX(left) + 1;
 }
 int insert_normal_node(node_t *parent, int val)
 {
 	if (val > parent->val) {
-		parent->right_height++;
-		if(parent->right)
+
+		if(parent->right) {
 			insert_normal_node(parent->right, val);
+			parent->right_height = MAX(parent->right) + 1;
+		}
 		else {
 			node_t *c = new_node();
 			c->parent = parent;
 			parent->right = c;
 			c->val = val;
+			parent->right_height = 1;
 		}
 
 	} else if(val < parent->val) {
-		parent->left_height++;
-		if(parent->left)
-		insert_normal_node(parent->left, val);
+
+		if(parent->left) {
+			insert_normal_node(parent->left, val);
+			parent->left_height = MAX(parent->left) + 1;
+		}
 		else {
 			node_t *c = new_node();
 			c->parent = parent;
 			c->val = val;
 			parent->left = c;
+			parent->left_height = 1;
 		}
 	} else return -1;
 
 	if (parent->left_height - parent->right_height > 1)
-		left_rotate(parent);
-	else if(parent->right_height - parent->left_height > 1)
 		right_rotate(parent);
+	else if(parent->right_height - parent->left_height > 1)
+		left_rotate(parent);
 }
 int insert_node(node_t *r, int val)
 {
@@ -138,12 +140,6 @@ void enqueue(node_t *node)
 	memcpy(array + head, node, sizeof(node_t));
 	head++;
 }
-int queue_isempty(){
-	if(head == tail)
-		return 1;
-	else 
-		return 0;
-}
 node_t *dequeue()
 {
 	if(tail == head)
@@ -151,7 +147,7 @@ node_t *dequeue()
 	node_t *n = &array[tail];
 	tail++;
 	if(head == tail) {
-		printf("reset queue\n");
+		//printf("reset queue\n");
 		head = tail = 0;
 	}
 	return n;
@@ -164,19 +160,16 @@ void display_queue()
 }
 void display_tree(node_t *root)
 {
-	node_t *n = root;
+	node_t *n = NULL;
 	enqueue(root);
-	//while (!queue_isempty()) {
-		//display_queue();
-		//printf("%d ", n->val);
-			while((n = dequeue()) != NULL) {
-			printf("%d ", n->val);
-			if(n->left)
-			enqueue(n->left);
-			if(n->right)
-			enqueue(n->right);
-		}
-	//}
+	while((n = dequeue()) != NULL) {
+	printf("%d ", n->val);
+	if(n->left)
+	enqueue(n->left);
+	if(n->right)
+	enqueue(n->right);
+	}
+	printf("\n");
 }
 void main()
 {
