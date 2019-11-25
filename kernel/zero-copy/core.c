@@ -3,29 +3,15 @@
 #include <linux/module.h>
 #include <linux/printk.h>
 #include <linux/miscdevice.h>
-static int watch_queue_release(struct inode *inode, struct file *file)
+struct log_queue {
+	int pages;
+	volatile int head, head_next, tail, tail_next;
+	char buf[0];
+};
+static int log_queue_release(struct inode *inode, struct file *file)
 {
-	struct watch_filter *wfilter;
-	struct watch_queue *wqueue = file->private_data;
-	int i;
-
-	watch_queue_clear(wqueue);
-
-	if (wqueue->buffer)
-		vunmap(wqueue->buffer);
-
-	for (i = 0; i < wqueue->nr_pages; i++) {
-		ClearPageUptodate(wqueue->pages[i]);
-		wqueue->pages[i]->mapping = NULL;
-		__free_page(wqueue->pages[i]);
-	}
-
-	wfilter = rcu_dereference_protected(wqueue->filter, true);
-	if (wfilter)
-		kfree_rcu(wfilter, rcu);
-	kfree(wqueue->pages);
-	put_cred(wqueue->cred);
-	put_watch_queue(wqueue);
+	struct log_queue *queue = file->private_data;
+	kfree(queue);
 	return 0;
 }
 
@@ -37,21 +23,61 @@ static int log_queue_open(struct inode *inode, struct file *file)
 	if (!wqueue)
 		return -ENOMEM;
 
-	wqueue->mapping.a_ops = &log_queue_aops;
-	wqueue->mapping.i_mmap = RB_ROOT_CACHED;
-	init_rwsem(&wqueue->mapping.i_mmap_rwsem);
-	spin_lock_init(&wqueue->mapping.private_lock);
-
-	kref_init(&wqueue->usage);
-	spin_lock_init(&wqueue->lock);
-	init_waitqueue_head(&wqueue->waiters);
-	wqueue->cred = get_cred(file->f_cred);
-
 	file->private_data = wqueue;
 
 	return 0;
 }
+#define SET_PAGE	_IOW('t', 1, int)
+#define GET_PAGE	_IOR('t', 2, int)
+static long log_queue_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+{
+	long ret = -1;
+	struct log_queue *queue = file->private_data;
 
+	switch(cmd) {
+		case SET_PAGE:
+			queue->nr_pages = arg;
+			ret = 0;
+			break;
+		case GET_PAGE:
+			ret = queue->nr_pages;
+			break;
+		default:
+			break;
+	}
+	return ret;
+}
+static unsigned int log_queue_poll(struct file *file, struct poll_table_struct *poll)
+{
+	return 0;
+}
+static struct vm_operations log_vm_ops = {
+	void log_vm_open(struct vm_area_struct * area);
+	void log_vm_close(struct vm_area_struct * area);
+	vm_fault_t log_vm_fault(struct vm_fault *vmf);
+};
+static int log_queue_mmap (struct file *file, struct vm_area_struct *vma)
+{
+	struct log_queue *queue = file->private_data;
+	if (!queue_nr_pages || (vma->vm_end - vma_vm_start > queue->nr_pages * PAGE_SIZE)
+			||) {
+		return -EINVAL;
+	}
+	vma->vm_ops = log_vm_ops;
+	vma->vm_flags |= VM_DONTEXPAND | VM_DONTDUMP;
+	vma->vm_private_data = file->private_data;
+	return 0;
+}
+#ifdef DEBUG_WITH_WRITE
+static ssize_t log_queue_write(struct file *file, const char __user *cred, size_t, loff_t *offset)
+{
+	return 0;
+}
+#endif
+static loff_t log_queue_llseek (struct file *file, loff_t offset, int whence)
+{
+	return 0;
+}
 static const struct file_operations log_queue_fops = {
 	.owner		= THIS_MODULE,
 	.open		= log_queue_open,
