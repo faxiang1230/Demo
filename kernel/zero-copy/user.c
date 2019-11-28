@@ -10,15 +10,15 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/mman.h>
+#include <sys/ioctl.h>
 #include <string.h>
 #include <stdlib.h>
 #include "include/urcu/uatomic.h"
-
-#define nr_of_pages	2
-#define SET_PAGE    _IOW('t', 1, int)
-#define GET_PAGE    _IOR('t', 2, int)
-#define NUM	(100000000UL)
-#define OFFSET	16
+#include "queue.h"
+void *recv_log(void *arg)
+{
+	return 0;
+}
 void main() {
 	int fd = 0;
 	char *buf = NULL;
@@ -26,30 +26,31 @@ void main() {
 	int *addr = NULL;
 	int val = 0, oldval = 0;
 	long long i = 0;
+	struct log_manager *lm = NULL;
+	pthread_t recv_log_1, recv_log_2;
 
 	fd = open("/dev/log_queue", O_RDWR);
-	dprintf(2, "open :%d\n", fd);
 	ioctl(fd, SET_PAGE, nr_of_pages);
-	dprintf(2, "ioctl :%d\n", fd);
 
 	page_size = sysconf(_SC_PAGESIZE);
 	mapping_size = nr_of_pages * page_size;
 	buf = mmap(NULL, mapping_size, PROT_READ|PROT_WRITE,
 			MAP_SHARED, fd, 0);
-//	printf("mmap :%d", fd);
 
-//printf("hello %s", buf);
-
-	addr = (int*)(buf + OFFSET);
-	val = addr[0];
-	//printf("begin:%ld\n", val);
+#ifdef TEST_ATOMIC
+	lm = (struct log_manager *)buf;
 	for (i = 0; i < NUM; i++) {
-		uatomic_add_return(addr, 1);
+		uatomic_add_return(&lm->test_count, 1);
 	}
 	sleep(1);
-
-	val = addr[0];
-	printf("end:%ld\n", val);
+	printf("end:%ld\n", lm->test_count);
+#endif
+#ifdef TEST_LOG
+	pthread_create(recv_log_1, NULL, recv_log, NULL);
+	pthread_create(recv_log_2, NULL, recv_log, NULL);
+	pthread_join(recv_log_1, NULL);
+	pthread_join(recv_log_2, NULL);
+#endif
 
 	munmap(buf, mapping_size);
 	close(fd);
