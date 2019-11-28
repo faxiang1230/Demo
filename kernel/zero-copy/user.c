@@ -12,6 +12,7 @@
 #include <sys/mman.h>
 #include <string.h>
 #include <stdlib.h>
+#include "include/urcu/uatomic.h"
 
 #define nr_of_pages	2
 #define SET_PAGE    _IOW('t', 1, int)
@@ -35,18 +36,21 @@ void main() {
 	mapping_size = nr_of_pages * page_size;
 	buf = mmap(NULL, mapping_size, PROT_READ|PROT_WRITE,
 			MAP_SHARED, fd, 0);
-	printf("mmap :%d\n", fd);
+//	printf("mmap :%d", fd);
 
-	printf("hello %s\n", buf);
-	addr = (long long*)(buf + OFFSET);
+//printf("hello %s", buf);
+
+	addr = (int*)(buf + OFFSET);
 	val = addr[0];
-	printf("begin:%ld\n", val);
-	for (int i = 0; i < NUM; i++) {
+	//printf("begin:%ld\n", val);
+	for (i = 0; i < NUM; i++) {
 		uatomic_add_return(addr, 1);
 	}
-	val = addr[0];
-	printf("begin:%ld\n", val);
 	sleep(1);
+
+	val = addr[0];
+	printf("end:%ld\n", val);
+
 	munmap(buf, mapping_size);
 	close(fd);
 }

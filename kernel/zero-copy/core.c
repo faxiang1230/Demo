@@ -12,6 +12,7 @@
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
 #include <linux/rbtree.h>
+#include <linux/kthread.h>
 
 struct log_queue {
 	int nr_pages;
@@ -19,28 +20,40 @@ struct log_queue {
 	struct page **pages;
 	char *buffer;
 	struct address_space mapping;
+	struct work_struct work;
 	char buf[0];
 };
 
 #define NUM (100000000UL)
 #define OFFSET  16
 
-static void my_work(struct work_struct *work);
-DECLARE_DELAYED_WORK(mywork, my_work);
-static void my_work(struct work_struct *work) {
-	int flags_old, flags_new;
+static int my_work(void *data) {
+//static void my_work(struct work_struct *work) {
+	int flags_old, flags_new, error;
 	long long i = 0;
-	struct log_queue *queue = (struct log_queue *)(atomic_read(work->data));
-	int *val = (int *)(queue->buffer + OFFSET);
-	printk(KERN_ERR "begin %d\n", *val);
+	struct log_queue *queue = (struct log_queue *)data;
+	//struct log_queue *queue = (struct log_queue *)container_of(work, struct log_queue, work);
+	atomic_t *val = (atomic_t *)(queue->buffer + OFFSET);
+	printk(KERN_ERR "begin %d\n", atomic_read(val));
 
 	for (i = 0; i < NUM; i++) {
-		do {
-			flags_old = atomic_read(val);
-			flags_new = flags_old++;
-		} while (atomic_cmpxchg(val, flags_old, flags_new) != flags_old);
+		//printk_ratelimited(KERN_ERR "hello1 %d\n", atomic_read(val));
+		error = atomic_read(val);
+		//do {
+again:
+		//printk_ratelimited(KERN_ERR "hello3 %d\n", error);
+		flags_old = error;
+		flags_new = flags_old-1;
+		error = atomic_cmpxchg(val, flags_old, flags_new);
+		if (error != flags_old) {
+			printk(KERN_ERR "race %d %d %d\n", flags_old, flags_new, error);
+			goto again;
+		}
+		//} while (error != flags_old);
+		//printk_ratelimited(KERN_ERR "hello2 %d\n", atomic_read(val));
 	}
-	printk(KERN_ERR "end %d\n", *val);
+	printk(KERN_ERR "end %d\n", atomic_read(val));
+	return 0;
 }
 
 static int log_queue_set_page_dirty(struct page *page)
@@ -54,8 +67,8 @@ static const struct address_space_operations log_queue_aops = {
 };
 static int log_queue_release(struct inode *inode, struct file *file)
 {
-	printk(KERN_ERR "%s\n", __func__);
 	struct log_queue *queue = file->private_data;
+	printk(KERN_ERR "%s\n", __func__);
 	kfree(queue);
 	return 0;
 }
@@ -81,9 +94,9 @@ static int log_queue_open(struct inode *inode, struct file *file)
 #define GET_PAGE	_IOR('t', 2, int)
 static long log_queue_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
-	printk(KERN_ERR "%s\n", __func__);
 	long ret = -1;
 	struct log_queue *queue = file->private_data;
+	printk(KERN_ERR "%s\n", __func__);
 
 	switch(cmd) {
 		case SET_PAGE:
@@ -146,7 +159,7 @@ static int log_queue_mmap (struct file *file, struct vm_area_struct *vma)
 		if (!queue->pages[i])
 			goto err_some_pages;
 		//queue->pages[i]->mapping = &queue->mapping;
-		printk(KERN_ERR "%s %p insert page\n", __func__, vma->vm_start + (i * PAGE_SIZE));
+		printk(KERN_ERR "%s %lx insert page\n", __func__, vma->vm_start + (i * PAGE_SIZE));
 		vm_insert_page(vma, vma->vm_start + (i * PAGE_SIZE), queue->pages[i]);
 	}
 	printk(KERN_ERR "%s 3\n", __func__);
@@ -158,8 +171,11 @@ static int log_queue_mmap (struct file *file, struct vm_area_struct *vma)
 	queue->buffer = buf;
 	memcpy(buf, "hello", sizeof("hello"));
 	printk(KERN_ERR "%s 5\n", __func__);
-	atomic_set(&my_work.data, queue);
-	schedule_work(&my_work);
+
+	//INIT_WORK(&queue->work, my_work);
+	//atomic_long_set(&my_work.data, queue);
+	//schedule_work(&queue->work);
+	kthread_run(my_work, queue, "log_queue");
 	return 0;
 
 err_some_pages:
@@ -177,11 +193,11 @@ static ssize_t log_queue_write(struct file *file, const char __user *cred, size_
 {
 	return 0;
 }
-#endif
 static loff_t log_queue_llseek (struct file *file, loff_t offset, int whence)
 {
 	return 0;
 }
+#endif
 static const struct file_operations log_queue_fops = {
 	.owner		= THIS_MODULE,
 	.open		= log_queue_open,
