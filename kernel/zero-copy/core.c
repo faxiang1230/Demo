@@ -32,7 +32,7 @@ void log_update_sender_count(struct log_manager *lm)
 	error = atomic_read(val);
 	do {
 		old = error;
-		new = (old + 1)%lm->max_entry;
+		new = old + 1;
 		error = atomic_cmpxchg(val, old, new);
 	} while (error != old);
 }
@@ -40,21 +40,30 @@ int log_sender_header(struct log_manager *lm)
 {
 	int old, new, error;
 	atomic_t *val = (atomic_t *)(&lm->prod_head);
-	
+	while ((atomic_read(val) + 1)%lm->max_entry == atomic_read((atomic_t *)&lm->cons_tail)) {
+		printk_ratelimited(KERN_INFO "queue is full %d %d %d %d\n", atomic_read(val),
+				atomic_read((atomic_t *)&lm->prod_tail),
+				atomic_read((atomic_t *)&lm->cons_head),
+				atomic_read((atomic_t *)&lm->cons_tail));
+		//mdelay(1);
+	}
 	error = atomic_read(val);
 	do {
 		old = error;
 		new = (old + 1)%lm->max_entry;
 		error = atomic_cmpxchg(val, old, new);
 	} while (error != old);
-	return new;	
+	return old;	
 }
 static void log_sender_tail(struct log_manager *lm, int oldtail)
 {
 	atomic_t *val = (atomic_t *)(&lm->prod_tail);
 	
 	while(atomic_read(val) != oldtail);
-	atomic_inc(val);
+	if ((oldtail+1)%lm->max_entry == 0)
+		atomic_set(val, 0);
+	else
+		atomic_inc(val);
 }
 static int send_log(void *data) {
 	long long index = 0, i = 0, j = 0;
@@ -70,7 +79,7 @@ static int send_log(void *data) {
 			log_sender_tail(lm, index);
 			log_update_sender_count(lm);
 		}
-		mdelay(10);
+		//mdelay(10);
 	}
 	printk(KERN_INFO "send %d\n", atomic_read(&lm->sender_count));
 	
@@ -155,7 +164,7 @@ static void log_vm_close(struct vm_area_struct * area)
 {
 	printk(KERN_ERR "%s\n", __func__);
 }
-static int log_vm_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
+static int log_vm_fault(struct vm_fault *vmf)
 {
 	printk(KERN_ERR "%s\n", __func__);
 	return VM_FAULT_SIGBUS;

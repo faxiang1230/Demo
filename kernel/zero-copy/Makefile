@@ -5,6 +5,6 @@ obj-m += core.o
 
 all:
 	make -C $(KERNEL) M=$(shell pwd)
-	#gcc user.c -o agent -I./include -lpthread
+	gcc user.c -o agent -I./include -lpthread -g
 clean:
 	rm -rf *.mod.c *.order *.symvers *.o *.bak .*.cmd *.ko .tmp_versions *~

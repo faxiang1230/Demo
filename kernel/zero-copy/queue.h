@@ -20,9 +20,6 @@
 
 char *demo_log = "012345678998765432100123456789";
 char magic[MAGIC_SIZE]={"LOGQUEU"};
-#ifndef atomic_t
-#define atomic_t int
-#endif
 struct log_manager {
 	char magic_start[MAGIC_SIZE];
 	int nr_pages;
