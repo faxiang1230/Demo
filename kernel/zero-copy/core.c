@@ -24,6 +24,11 @@ struct log_queue {
 };
 
 #ifdef TEST_LOG
+struct task_struct *sender1 = NULL, *sender2 = NULL;
+int log_isfull(struct log_manager *lm)
+{
+	return ((atomic_read(&lm->prod_head) + 1)%lm->max_entry) == atomic_read(&lm->cons_tail);
+}
 void log_update_sender_count(struct log_manager *lm)
 {
 	int old, new, error;
@@ -40,33 +45,37 @@ int log_sender_header(struct log_manager *lm)
 {
 	int old, new, error;
 	atomic_t *val = (atomic_t *)(&lm->prod_head);
-	while ((atomic_read(val) + 1)%lm->max_entry == atomic_read((atomic_t *)&lm->cons_tail)) {
+#if 0
+	while (log_isfull(lm))
+	{
 		printk_ratelimited(KERN_INFO "queue is full %d %d %d %d\n", atomic_read(val),
 				atomic_read((atomic_t *)&lm->prod_tail),
 				atomic_read((atomic_t *)&lm->cons_head),
 				atomic_read((atomic_t *)&lm->cons_tail));
 		//mdelay(1);
 	}
+#endif
 	error = atomic_read(val);
 	do {
 		old = error;
 		new = (old + 1)%lm->max_entry;
+		while (new == atomic_read(&lm->cons_tail));
 		error = atomic_cmpxchg(val, old, new);
 	} while (error != old);
 	return old;	
 }
-static void log_sender_tail(struct log_manager *lm, int oldtail)
+static void log_sender_tail(struct log_manager *lm, int oldtail, int new)
 {
 	atomic_t *val = (atomic_t *)(&lm->prod_tail);
+	int error;
 	
 	while(atomic_read(val) != oldtail);
-	if ((oldtail+1)%lm->max_entry == 0)
-		atomic_set(val, 0);
-	else
-		atomic_inc(val);
+	error = atomic_cmpxchg(val, oldtail, new);
+	if (error != oldtail)
+		printk(KERN_ERR "%s failed update prod tail:%d %d\n", __func__, oldtail, error);
 }
 static int send_log(void *data) {
-	long long index = 0, i = 0, j = 0;
+	long long index = 0, i = 0, j = 0, new = 0;
 	struct log_queue *queue = (struct log_queue *)data;
 	struct log_manager *lm = (struct log_manager*)queue->buffer;
 	char *log = NULL;
@@ -76,12 +85,17 @@ static int send_log(void *data) {
 			index = log_sender_header(lm);
 			log = queue->buffer + PAGE_SIZE + (index*LOG_ENTRY_SIZE);
 			snprintf(log, LOG_ENTRY_SIZE, "%s", demo_log);
-			log_sender_tail(lm, index);
+			new = (index + 1)%lm->max_entry;
+			log_sender_tail(lm, index, new);
 			log_update_sender_count(lm);
 		}
 		//mdelay(10);
 	}
-	printk(KERN_INFO "send %d\n", atomic_read(&lm->sender_count));
+	if (current == sender1) sender1 = NULL;
+	if (current == sender2) sender2 = NULL;
+	printk(KERN_INFO "send %d prod head:%d tail:%d\n", 
+			atomic_read(&lm->sender_count),
+			atomic_read(&lm->prod_head), atomic_read(&lm->prod_tail));
 	
 	return 0;
 }
@@ -91,8 +105,8 @@ static int my_work(void *data) {
 	int flags_old, flags_new, error;
 	long long i = 0;
 	struct log_queue *queue = (struct log_queue *)data;
-	struct log_manager *ln = (struct log_manager *)queue->buffer;
-	atomic_t *val = (atomic_t *)(lm->test_count);
+	struct log_manager *lm = (struct log_manager *)queue->buffer;
+	atomic_t *val = (atomic_t *)(&lm->test_count);
 
 	for (i = 0; i < NUM; i++) {
 		error = atomic_read(val);
@@ -111,10 +125,15 @@ static int log_queue_release(struct inode *inode, struct file *file)
 	int i = 0;
 	struct log_queue *queue = file->private_data;
 	printk(KERN_ERR "%s\n", __func__);
-	kfree(queue->pages);
+#ifdef TEST_LOG
+	if (sender1) kthread_stop(sender1);
+	if (sender2) kthread_stop(sender2);
+	sender1 = sender2 = NULL;
+#endif
 	for(i = 0; i < queue->nr_pages; i++) {
 		put_page(queue->pages[i]);
 	}
+	kfree(queue->pages);
 	kfree(queue);
 	return 0;
 }
@@ -221,13 +240,13 @@ static int log_queue_mmap (struct file *file, struct vm_area_struct *vma)
 	memcpy(lm->magic_start, magic, sizeof(lm->magic_start));
 	memcpy(lm->magic_end, magic, sizeof(lm->magic_end));
 #ifdef TEST_LOG
-	kthread_run(send_log, queue, "log_sender1");
-	kthread_run(send_log, queue, "log_sender2");
+	sender1 = kthread_run(send_log, queue, "log_sender1");
+	sender2 = kthread_run(send_log, queue, "log_sender2");
 #endif
 	
 #ifdef TEST_ATOMIC
-	kthread_run(my_work, queue, "log_queue1");
-	kthread_run(my_work, queue, "log_queue2");
+	kthread_run(my_work, queue, "log_count1");
+	kthread_run(my_work, queue, "log_count2");
 #endif
 	return 0;
 

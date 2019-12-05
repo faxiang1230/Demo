@@ -17,6 +17,7 @@
 #define MAGIC_SIZE	8
 
 #define TEST_LOG
+//#define TEST_ATOMIC
 
 char *demo_log = "012345678998765432100123456789";
 char magic[MAGIC_SIZE]={"LOGQUEU"};
