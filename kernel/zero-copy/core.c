@@ -45,21 +45,12 @@ int log_sender_header(struct log_manager *lm)
 {
 	int old, new, error;
 	atomic_t *val = (atomic_t *)(&lm->prod_head);
-#if 0
-	while (log_isfull(lm))
-	{
-		printk_ratelimited(KERN_INFO "queue is full %d %d %d %d\n", atomic_read(val),
-				atomic_read((atomic_t *)&lm->prod_tail),
-				atomic_read((atomic_t *)&lm->cons_head),
-				atomic_read((atomic_t *)&lm->cons_tail));
-		//mdelay(1);
-	}
-#endif
+
 	error = atomic_read(val);
 	do {
+		while (log_isfull(lm));
 		old = error;
 		new = (old + 1)%lm->max_entry;
-		while (new == atomic_read(&lm->cons_tail));
 		error = atomic_cmpxchg(val, old, new);
 	} while (error != old);
 	return old;	
