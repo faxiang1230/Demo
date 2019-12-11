@@ -16,14 +16,21 @@ void upx_parse(char *header)
 	int pnum = ehdr->e_phnum;
 	int index = 0;
 
+	printf("phum:%d entry:%lx\n", ehdr->e_phnum, ehdr->e_entry);
 	for (; index < pnum; index++) {
 		phdr = (Elf64_Phdr *)(ehdr + 1) + index;
+		printf("offset:%lx filesize:%x memsize:%x vaddr:%lx\n", phdr->p_offset, phdr->p_filesz, phdr->p_memsz,phdr->p_vaddr);
 	}
 
 	struct l_info *linfo = (struct l_info *)(phdr + 1);
 	struct p_info *pinfo = (struct p_info *)(linfo + 1);
 	struct b_info *binfo = (struct b_info *)(pinfo + 1);
-	for (index = 0; index < 3; index++) {
+
+	for (index = 0; index < 10; index++) {
+		printf("unc:%x cpr:%x \n", binfo->sz_unc, binfo->sz_cpr);
+		if (binfo->sz_unc == 0) {
+			printf("EOF flag:%x\n", binfo->sz_cpr);
+		}
 		binfo = (char *)(binfo + 1) + binfo->sz_cpr;
 	}
 }
