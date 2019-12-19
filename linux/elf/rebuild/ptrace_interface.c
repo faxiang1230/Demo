@@ -51,8 +51,20 @@ long ptrace_read(void *to, int len, void *from, pid_t pid)
 long ptrace_write(void *from, int len, void *to, pid_t pid)
 {
 	int offset = 0;
-	while(ptrace(PTRACE_POKEUSER, pid, from + offset, to + offset) > 0)
-		offset += sizeof(int);
+	int size = len / sizeof(long);
+	long word;
+	unsigned char *src = from;
+	unsigned char *dest = to;
+
+	while (size) {
+		word = ptrace(PTRACE_POKEDATA, pid, dest + offset, src + offset);
+		if (word == -1 && errno != 0) {
+			printf("%s size:%d offset:%d addr:%p error:%s\n", __func__, size, offset, src, strerror(errno));
+			return 1;
+		}
+		offset += sizeof(long);
+		size--;
+	}
 	return offset;
 }
 Elf64_Addr get_mem_base(pid_t pid)

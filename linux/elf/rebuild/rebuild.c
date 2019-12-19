@@ -88,15 +88,15 @@ int main(int argc, char* argv[]) {
 	base_addr = get_mem_base(pid);
 
 	ret = ptrace_attach(pid);
-	printf("attach pid:%d ret:%d\n", pid, ret);
+	printf("attach pid:%d ret:%ld\n", pid, ret);
 	printf("base addr is:%lx\n", base_addr);
 	ret = ptrace_read(&ehdr, sizeof(ehdr), (void *)base_addr, pid);
 	dump_ehdr(&ehdr);
 
-	printf("ehdr ret:%d\n", ret);
+	printf("ehdr ret:%ld\n", ret);
 	pmem = malloc(ehdr.e_phentsize * ehdr.e_phnum);
-	ret = ptrace_read(pmem, ehdr.e_phentsize * ehdr.e_phnum, base_addr + ehdr.e_phoff, pid);
-	printf("phdr ret:%d\n", ret);
+	ret = ptrace_read(pmem, ehdr.e_phentsize * ehdr.e_phnum, (void *)(base_addr + ehdr.e_phoff), pid);
+	printf("phdr ret:%ld\n", ret);
 
 	phdr = (Elf64_Phdr *)pmem;
 
@@ -126,23 +126,23 @@ int main(int argc, char* argv[]) {
 
 	printf("prepare text\n");
 	buf = calloc(1, data_offset + data_size);
-	ret = ptrace_read(buf, text_size, base_addr, pid);
-	printf("text ret:0x%x\n", ret);
-	ret = ptrace_read(buf + data_offset, data_size, base_addr + data_vaddr, pid);
-	printf("data ret:0x%x\n", ret);
+	ret = ptrace_read(buf, text_size, (void *)base_addr, pid);
+	printf("text ret:0x%lx\n", ret);
+	ret = ptrace_read(buf + data_offset, data_size, (void *)(base_addr + data_vaddr), pid);
+	printf("data ret:0x%lx\n", ret);
 
-	printf("dynamic offset:%x\n", dynoffset);
+	printf("dynamic offset:%lx\n", dynoffset);
 	Elf64_Dyn *dyn = (Elf64_Dyn *)(buf + dynoffset);
 	for (i = 0; dyn[i].d_tag != DT_NULL; i++) {
 		switch(dyn[i].d_tag)
 		{
 			case DT_PLTGOT:	//.got section
 				dyn[i].d_un.d_ptr -= base_addr;
-				printf("Located PLT GOT Vaddr 0x%lx index:%d\n", got = (Elf64_Addr)dyn[i].d_un.d_ptr, i);
-				printf("Relevant GOT entries begin at 0x%x\n", (Elf64_Addr)dyn[i].d_un.d_ptr + 24);
+				printf("Located PLT GOT Vaddr 0x%lx index:%ld\n", got = (Elf64_Addr)dyn[i].d_un.d_ptr, i);
+				printf("Relevant GOT entries begin at 0x%lx\n", (Elf64_Addr)dyn[i].d_un.d_ptr + 24);
 				got_off = dyn[i].d_un.d_ptr - data_vaddr;
 				GLOBAL_OFFSET_TABLE = (Elf64_Addr *)(buf + data_offset + got_off);
-				printf("data offset:%x got_off:%x data_vaddr:%p\n", data_offset, got_off, data_vaddr);
+				printf("data offset:%lx got_off:%lx data_vaddr:0x%lx\n", data_offset, got_off, data_vaddr);
 				GLOBAL_OFFSET_TABLE[0] = dynvaddr;
 				GLOBAL_OFFSET_TABLE[1] = 0;
 				GLOBAL_OFFSET_TABLE[2] = 0;
@@ -169,7 +169,7 @@ int main(int argc, char* argv[]) {
 			case DT_VERSYM:
 			case DT_RELA:
 			case DT_GNU_HASH:
-				printf("[+] Rebase dynamic entry %d from %lx", dyn[i].d_tag, dyn[i].d_un.d_ptr);
+				printf("[+] Rebase dynamic entry %ld from %lx", dyn[i].d_tag, dyn[i].d_un.d_ptr);
 				dyn[i].d_un.d_ptr -= base_addr;
 				printf(" to %lx\n", dyn[i].d_un.d_ptr);
 			case DT_DEBUG:
