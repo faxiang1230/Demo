@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <elf.h>
+#include <sys/wait.h>
 long ptrace_attach(pid_t pid);
 long ptrace_detach(pid_t pid);
 long ptrace_read(void *to, int len, void *from, pid_t pid);

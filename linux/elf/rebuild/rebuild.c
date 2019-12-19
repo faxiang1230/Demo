@@ -13,19 +13,65 @@
 #include <sys/ptrace.h>
 #include <sys/mman.h>
 #include "ptrace_interface.h"
-
+char shdrstr[] = {
+"\0"
+".shstrtab\0"
+".interp\0"
+".note.ABI-tag\0"
+".note.gnu.build-id\0"
+".gnu.hash\0"
+".dynsym\0"
+".dynstr\0"
+".gnu.version\0"
+".gnu.version_r\0"
+".rela.dyn\0"
+".rela.plt\0"
+".init\0"
+".plt.got\0"
+".text\0"
+".fini\0"
+".rodata\0"
+".eh_frame_hdr\0"
+".eh_frame\0"
+".init_array\0"
+".fini_array\0"
+".data.rel.ro\0"
+".dynamic\0"
+".data\0"
+".bss\0"
+".gnu_debuglink\0"
+};
 void dump_ehdr(Elf64_Ehdr *ehdr)
 {
 	printf("Elf64_Ehdr info:\n\tentry:%lx \tphnum:%d \tpentry size:%d\n",
 			ehdr->e_entry, ehdr->e_phnum, ehdr->e_phentsize);
 }
+/* scan signature
+ * 0000000000001d30 <__ctype_toupper_loc@plt-0x10>:                                     
+ * 1d30:   ff 35 1a 00 21 00       pushq  0x21001a(%rip)        # 211d50 <quoting_style_args@@Base+0x250>                                     
+ * 1d36:   ff 25 1c 00 21 00       jmpq   *0x21001c(%rip)        # 211d58 <quoting_style_args@@Base+0x258>
+ * 1d3c:   0f 1f 40 00             nopl   0x0(%rax)
+*/
+Elf64_Addr find_plt(unsigned char *buf, int text_offset, int text_size)
+{
+	int offset = 0;
+	while ((offset + 0x11) < text_size) {
+		if (buf[offset] == 0xff && buf[offset + 1] == 0x35 &&
+				buf[offset + 6] == 0xff && buf[offset + 7] == 0x25 &&
+				buf[offset + 0xc] == 0x0f && buf[offset + 0xd] == 0x1f && buf[offset + 0xe] == 0x40 && buf[offset + 0xf] == 0x0 &&
+				buf[offset+0x10]==0xff && buf[offset+0x11]==0x25)
+			break;
+		offset++;
+	}
+	return offset;
+}
 int main(int argc, char* argv[]) {
 	int fd;
-	char *buf = NULL, *pmem = NULL;
-	Elf64_Ehdr ehdr;
+	char *buf = NULL, *pmem = NULL, *p = NULL;
+	Elf64_Ehdr ehdr, *ehdr_ptr;
 	Elf64_Phdr *phdr;
 	pid_t pid;
-	long ret = 0, i = 0;
+	long ret = 0, i = 0, j = 0;
 	Elf64_Addr text_base, text_size, data_offset, data_size, data_vaddr, bss_len, dynvaddr, dynoffset, dynsize, base_addr;
 	Elf64_Addr interp_vaddr, interp_off, interp_size;
 	Elf64_Addr stringTable, plt_siz, got_off, got;
@@ -91,33 +137,179 @@ int main(int argc, char* argv[]) {
 		switch(dyn[i].d_tag)
 		{
 			case DT_PLTGOT:	//.got section
+				dyn[i].d_un.d_ptr -= base_addr;
 				printf("Located PLT GOT Vaddr 0x%lx index:%d\n", got = (Elf64_Addr)dyn[i].d_un.d_ptr, i);
-				printf("Relevant GOT entries begin at 0x%x\n", (Elf64_Addr)dyn[i].d_un.d_ptr + );
+				printf("Relevant GOT entries begin at 0x%x\n", (Elf64_Addr)dyn[i].d_un.d_ptr + 24);
 				got_off = dyn[i].d_un.d_ptr - data_vaddr;
 				GLOBAL_OFFSET_TABLE = (Elf64_Addr *)(buf + data_offset + got_off);
+				printf("data offset:%x got_off:%x data_vaddr:%p\n", data_offset, got_off, data_vaddr);
 				GLOBAL_OFFSET_TABLE[0] = dynvaddr;
+				GLOBAL_OFFSET_TABLE[1] = 0;
+				GLOBAL_OFFSET_TABLE[2] = 0;
 				GLOBAL_OFFSET_TABLE += 3;
 				break;
 			case DT_PLTRELSZ:
-				plt_siz = dyn[i].d_un.d_val / sizeof(Elf64_Rel);
+				plt_siz = dyn[i].d_un.d_val / sizeof(Elf64_Rela);
 				break;
+#if 0
 			case DT_STRTAB:
-				stringTable = (char *)dyn[i].d_un.d_ptr;
+				dyn[i].d_un.d_ptr -= base_addr;
+				dynstr = (char *)dyn[i].d_un.d_ptr;
 				break;
 			case DT_SYMTAB:
-				symtab = (Elf64_Sym *)dyn[i].d_un.d_ptr;
+				dyn[i].d_un.d_ptr -= base_addr;
+				dynsym = (Elf64_Sym *)dyn[i].d_un.d_ptr;
+				break;
+#else
+			case DT_STRTAB:
+			case DT_SYMTAB:
+#endif
+			case DT_JMPREL:
+			case DT_REL:
+			case DT_VERSYM:
+			case DT_RELA:
+			case DT_GNU_HASH:
+				printf("[+] Rebase dynamic entry %d from %lx", dyn[i].d_tag, dyn[i].d_un.d_ptr);
+				dyn[i].d_un.d_ptr -= base_addr;
+				printf(" to %lx\n", dyn[i].d_un.d_ptr);
+			case DT_DEBUG:
+				dyn[i].d_un.d_ptr -= 0;
 				break;
 		}
 	}
 
-	//clear 2,3 entry
-	uint8_t *gp = &buf[data_offset + got_off + 8];
-	for (i = 0; i < 8 * 2; i++)
-		*(gp + 8) = 0;
-	
-	Elf64_Addr PLT_VADDR = GLOBAL_OFFSET_TABLE[0]; /* gmon_start */
+	printf("text_base:0x%lx text_size:0x%lx\n", text_base, text_size);
+	Elf64_Addr PLT_VADDR = find_plt(buf, text_base, text_size);	
 	printf("[+] Resolved PLT: 0x%lx\n", PLT_VADDR);
-	
+	PLT_VADDR + 0x10 + 0x6;
+	for(i = 0; i < plt_siz; i ++) {
+		//printf("Patch #%d - [0x%lx] changed to [0x%lx]\n", i, GLOBAL_OFFSET_TABLE[i], PLT_VADDR);
+		GLOBAL_OFFSET_TABLE[i] = PLT_VADDR;
+		PLT_VADDR += (i *0x10);
+	}
+
+	Elf64_Shdr *shdr = malloc(sizeof(Elf64_Shdr) * 10);
+	//NULL section
+	i = 0;
+	memset(shdr, 0, sizeof(Elf64_Shdr));
+	//.interp
+	i++;
+	shdr[i].sh_type = SHT_PROGBITS;
+	shdr[i].sh_flags = SHF_ALLOC;
+	shdr[i].sh_addralign = 1;
+	shdr[i].sh_entsize = 0;
+	shdr[i].sh_info = 0;
+	shdr[i].sh_link = 0;
+	shdr[i].sh_size = interp_size;
+	shdr[i].sh_offset = interp_off;
+	shdr[i].sh_addr = interp_off;
+	for (j = 0, p = shdrstr;; j++)
+		if (p[j] == '.' && p[j + 1] == 'i' && p[j + 2] == 'n' && p[j + 3] == 't' && p[j + 4] == 'e') {
+			shdr[i].sh_name = j;break;
+		}
+	//.text
+	i++ ;
+	shdr[i].sh_type = SHT_PROGBITS;
+	shdr[i].sh_flags = SHF_ALLOC|SHF_EXECINSTR;
+	shdr[i].sh_addralign = 0xf;
+	shdr[i].sh_entsize = 0;
+	shdr[i].sh_info = 0;
+	shdr[i].sh_link = 0;
+	shdr[i].sh_offset = sizeof(ehdr)+ehdr.e_phnum*ehdr.e_phentsize;
+	shdr[i].sh_size = text_size - shdr[i].sh_offset;
+	shdr[i].sh_addr = shdr[i].sh_offset;
+	for (j = 0, p = shdrstr;; j++)
+		if (p[j] == '.' && p[j + 1] == 't' && p[j + 2] == 'e' && p[j + 3] == 'x' && p[j + 4] == 't') {
+			shdr[i].sh_name = j;break;
+		}
+	//.data	
+	i++ ;
+	shdr[i].sh_type = SHT_PROGBITS;
+	shdr[i].sh_flags = SHF_ALLOC|SHF_WRITE;
+	shdr[i].sh_addralign = 0x20;
+	shdr[i].sh_entsize = 0;
+	shdr[i].sh_info = 0;
+	shdr[i].sh_link = 0;
+	shdr[i].sh_size = data_size;
+	shdr[i].sh_offset = data_offset;
+	shdr[i].sh_addr = data_vaddr;
+	for (j = 0, p = shdrstr;; j++)
+		if (p[j] == '.' && p[j + 1] == 'd' && p[j + 2] == 'a' && p[j + 3] == 't' && p[j + 4] == 'a' && p[j + 5] == '\0') {
+			shdr[i].sh_name = j;break;
+		}
+	//.bss
+	i++ ;
+	shdr[i].sh_type = SHT_NOBITS;
+	shdr[i].sh_flags = SHF_ALLOC|SHF_WRITE;
+	shdr[i].sh_addralign = 0x20;
+	shdr[i].sh_entsize = 0;
+	shdr[i].sh_info = 0;
+	shdr[i].sh_link = 0;
+	shdr[i].sh_size = bss_len;
+	shdr[i].sh_offset = data_offset + data_size;
+	shdr[i].sh_addr = data_vaddr + shdr[i].sh_offset;
+	for (j = 0, p = shdrstr;; j++)
+		if (p[j] == '.' && p[j + 1] == 'b' && p[j + 2] == 's' && p[j + 3] == 's' && p[j + 4] == '\0') {
+			shdr[i].sh_name = j;break;
+		}
+#if 0
+	//.dynsym
+	i++ ;
+	shdr[i].sh_type = SHT_DYNSYM;
+	shdr[i].sh_flags = SHF_ALLOC;
+	shdr[i].sh_addralign = 0x8;
+	shdr[i].sh_entsize = 0;
+	shdr[i].sh_info = 0;
+	shdr[i].sh_link = 0;
+	shdr[i].sh_offset = dynsym;
+	shdr[i].sh_size = dynsize;
+	shdr[i].sh_addr = dynsym;
+	for (j = 0, p = shdrstr;; j++)
+		if (p[j] == '.' && p[j + 1] == 'd' && p[j + 2] == 'y' && p[j + 3] == 'n' && p[j + 4] == 's') {
+			shdr[i].sh_name = j;break;
+		}
+#endif
+	//.dynamic
+	i++ ;
+	shdr[i].sh_type = SHT_DYNAMIC;
+	shdr[i].sh_flags = SHF_ALLOC|SHF_WRITE;
+	shdr[i].sh_addralign = 0x8;
+	shdr[i].sh_entsize = 0;
+	shdr[i].sh_info = 0;
+	shdr[i].sh_link = 0;
+	shdr[i].sh_offset = dynoffset;
+	shdr[i].sh_size = dynsize;
+	shdr[i].sh_addr = dynvaddr;
+	for (j = 0, p = shdrstr;; j++)
+		if (p[j] == '.' && p[j + 1] == 'd' && p[j + 2] == 'y' && p[j + 3] == 'n' && p[j + 4] == 'a') {
+			shdr[i].sh_name = j;break;
+		}
+
+	//.shstrtab	
+	i++;
+	shdr[i].sh_type = SHT_STRTAB;
+	shdr[i].sh_flags = 0;
+	shdr[i].sh_addralign = 1;   
+	shdr[i].sh_entsize = 0;
+	shdr[i].sh_info = 0;
+	shdr[i].sh_link = 0;
+	shdr[i].sh_size = sizeof(shdrstr);
+	shdr[i].sh_offset = data_offset + data_size;
+	shdr[i].sh_addr = 0;
+	for (j = 0, p = shdrstr;; j++)
+		if (p[j] == '.' && p[j + 1] == 's' && p[j + 2] == 'h' && p[j + 3] == 's' && p[j + 4] == 't') {
+			shdr[i].sh_name = j;break;
+		}
+	ehdr_ptr = (Elf64_Ehdr *)buf;
+	ehdr_ptr->e_shnum = i+1;
+	ehdr_ptr->e_shstrndx = i;
+	ehdr_ptr->e_shoff = data_offset+data_size+sizeof(shdrstr);
+
 	write(fd, buf, data_offset + data_size);
+	//printf("shstrtab offset:%x\n", lseek(fd, 0, SEEK_CUR));
+	write(fd, shdrstr, sizeof(shdrstr));
+	//printf("shstrtab offset:%x\n", lseek(fd, 0, SEEK_CUR));
+	write(fd, shdr, sizeof(Elf64_Shdr)*(i+1));
+
 	close(fd);
 }
