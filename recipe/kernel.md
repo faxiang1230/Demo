@@ -3,12 +3,12 @@
 
  - 王建兴/男/1991
  - 本科/河南理工大学自动化
- - 工作年限：5年
+ - 工作年限：7年
  - 技术博客：https://faxiang1230.github.io
 
  - 期望职位：Linux内核开发
  - 期望城市：北京
- 
+
 # 联系方式
 - 手机：15313132056
 - Email：wangjianxing5210@163.com
@@ -17,7 +17,28 @@
 
 
 # 工作经历
-## 上海思芮有限公司 (2017年8月 ~ 至今)
+## 北京志翔科技 (2018年7月~至今)
+1.主机agent开发,应用层开发,主要涉及多线程，IO模型，信号处理，进程间共享和通信，锁，URCU,数据结构设计，保活设计，单例运行设计;  
+2.内核态编程:   
+	1.arm64下内核hook的实现，也可以实现x86和mips64各种hook方式  
+  https://github.com/faxiang1230/Demo/blob/master/kernel/hook/aarch64/hook_aarch64.c  
+  https://blog.csdn.net/faxiang1230/article/details/103370497  
+	2.基于redirfs的filter开发  
+  3.龙芯+中标麒麟系统上kdump实现，总结kdump文档  
+  https://blog.csdn.net/faxiang1230/article/details/103782317  
+  4.基于device mapper实现安全U盘  
+3.linux下设备审计:USB设备，光驱，打印机等设备  
+4.linux下通过数据加密实现的的移动设备存储  
+5.linux下USB和光盘设备监控和审计，通过strace分析应用行为模式  
+
+下面是一些程序原型设计,没有产品级实现:  
+kernel和应用间通过mmap+cas实现无锁队列免拷贝日志传输   
+通过劫持bio来实现块数据加密(https://blog.csdn.net/faxiang1230/article/details/91891496)  
+ELF病毒感染检测方向工作开展和内部培训(https://github.com/faxiang1230/Demo/blob/master/linux/elf/ELF-base.pptx)  
+
+个人总结:
+熟悉内核中调度，文件系统，内存等计算机理论基础和linux上的实践，对内核方向有强烈兴趣，有高度自驱能力
+## 上海思芮有限公司 (2017年8月 ~ 2018年7月)
 ### Android手持机
 在项目中我主导项目的进度，评估技术方案，负责把控手持机项目整体实现。同时我也参与项目开发，攻克技术难题，调研新的技术方案实现，下面是我的一些具体工作：
 1.Android系统项目中进行feature定制和bug修复

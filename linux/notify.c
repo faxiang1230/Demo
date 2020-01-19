@@ -19,7 +19,7 @@ int main(int argc, char **argv)
 	if (wd < 0)
 		perror("add watch");
 	while (1) {
-		ret = read(wd, buf, sizeof(buf));
+		ret = read(inotify_fd, buf, sizeof(buf));
 		if (ret > 0) {
 			event = (struct inotify_event *)buf;
 			printf("name %s mask:%x\n", event->name, event->mask);
