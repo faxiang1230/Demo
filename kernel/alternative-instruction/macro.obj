@@ -1,0 +1,80 @@
+
+macro.o:     file format elf64-x86-64
+macro.o
+architecture: i386:x86-64, flags 0x00000011:
+HAS_RELOC, HAS_SYMS
+start address 0x0000000000000000
+
+Sections:
+Idx Name          Size      VMA               LMA               File off  Algn
+  0 .text         00000013  0000000000000000  0000000000000000  00000040  2**0
+                  CONTENTS, ALLOC, LOAD, READONLY, CODE
+  1 .data         00000000  0000000000000000  0000000000000000  00000053  2**0
+                  CONTENTS, ALLOC, LOAD, DATA
+  2 .bss          00000000  0000000000000000  0000000000000000  00000053  2**0
+                  ALLOC
+  3 .altinstructions 0000000d  0000000000000000  0000000000000000  00000053  2**0
+                  CONTENTS, ALLOC, LOAD, RELOC, READONLY, DATA
+  4 .altinstr_replacement 0000000c  0000000000000000  0000000000000000  00000060  2**0
+                  CONTENTS, ALLOC, LOAD, READONLY, CODE
+  5 .comment      00000036  0000000000000000  0000000000000000  0000006c  2**0
+                  CONTENTS, READONLY
+  6 .note.GNU-stack 00000000  0000000000000000  0000000000000000  000000a2  2**0
+                  CONTENTS, READONLY
+  7 .eh_frame     00000038  0000000000000000  0000000000000000  000000a8  2**3
+                  CONTENTS, ALLOC, LOAD, RELOC, READONLY, DATA
+SYMBOL TABLE:
+0000000000000000 l    df *ABS*	0000000000000000 macro.c
+0000000000000000 l    d  .text	0000000000000000 .text
+0000000000000000 l    d  .data	0000000000000000 .data
+0000000000000000 l    d  .bss	0000000000000000 .bss
+0000000000000000 l    d  .altinstructions	0000000000000000 .altinstructions
+0000000000000000 l    d  .altinstr_replacement	0000000000000000 .altinstr_replacement
+0000000000000000 l    d  .note.GNU-stack	0000000000000000 .note.GNU-stack
+0000000000000000 l    d  .eh_frame	0000000000000000 .eh_frame
+0000000000000000 l    d  .comment	0000000000000000 .comment
+0000000000000000 g     F .text	0000000000000013 fun
+0000000000000000         *UND*	0000000000000000 X86_FEATURE_XMM2
+
+
+Contents of section .text:
+ 0000 554889e5 f0678304 24009090 90909090  UH...g..$.......
+ 0010 905dc3                               .].             
+Contents of section .altinstructions:
+ 0000 00000000 00000000 00000c0c 06        .............   
+Contents of section .altinstr_replacement:
+ 0000 0faef00f aef00fae f00faef0           ............    
+Contents of section .comment:
+ 0000 00474343 3a202855 62756e74 7520352e  .GCC: (Ubuntu 5.
+ 0010 342e302d 36756275 6e747531 7e31362e  4.0-6ubuntu1~16.
+ 0020 30342e31 32292035 2e342e30 20323031  04.12) 5.4.0 201
+ 0030 36303630 3900                        60609.          
+Contents of section .eh_frame:
+ 0000 14000000 00000000 017a5200 01781001  .........zR..x..
+ 0010 1b0c0708 90010000 1c000000 1c000000  ................
+ 0020 00000000 13000000 00410e10 8602430d  .........A....C.
+ 0030 064e0c07 08000000                    .N......        
+
+Disassembly of section .text:
+
+0000000000000000 <fun>:
+   0:	55                   	push   %rbp
+   1:	48 89 e5             	mov    %rsp,%rbp
+   4:	f0 67 83 04 24 00    	lock addl $0x0,(%esp)
+   a:	90                   	nop
+   b:	90                   	nop
+   c:	90                   	nop
+   d:	90                   	nop
+   e:	90                   	nop
+   f:	90                   	nop
+  10:	90                   	nop
+  11:	5d                   	pop    %rbp
+  12:	c3                   	retq   
+
+Disassembly of section .altinstr_replacement:
+
+0000000000000000 <.altinstr_replacement>:
+   0:	0f ae f0             	mfence 
+   3:	0f ae f0             	mfence 
+   6:	0f ae f0             	mfence 
+   9:	0f ae f0             	mfence 
