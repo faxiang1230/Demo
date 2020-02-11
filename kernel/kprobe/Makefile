@@ -2,6 +2,7 @@
 KERNEL := /home/linux/private/runninglinuxkernel_4.0
 obj-m += kprobe.o
 obj-m += kretprobe_example.o
+obj-m += jprobe_unix.o
 
 all:
 	make -C $(KERNEL) M=$(shell pwd)
