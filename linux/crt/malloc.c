@@ -85,10 +85,8 @@ int mini_crt_heap_init()
 	unsigned heap_size = (1024*1024*32);
 
 	base = (void *)brk(0);
-	printf("brk base:%d\n", base);
 	end = ADDR_ADD(base, heap_size);
 	end = (void *)brk(end);
-	printf("brk end:%d\n", end);
 	if (!end) return -1;
 
 	header = (heap_header_t *)base;
