@@ -1,5 +1,6 @@
 CC=gcc
-CFLAGS=-c -fno-builtin -nostdlib -fno-stack-protector
+CFLAGS=-c -fno-builtin -nostdlib -fno-stack-protector -g
+CFLAGS+=--save-temps
 OBJ= hello minicrt entry
 all: $(OBJ)
 
@@ -18,4 +19,4 @@ hello:minicrt entry hello.o
 .phony:clean
 
 clean:
-	@rm -rf *.o minicrt.a hello
+	@rm -rf *.o *.i *.s minicrt.a hello

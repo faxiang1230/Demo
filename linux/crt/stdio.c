@@ -8,7 +8,8 @@ int mini_crt_io_init()
 {
 	return 0;
 }
-int strcmp(const char *s1, const char *s2){
+int strcmp(const char *s1, const char *s2)
+{
 	while (*s1 && *s2) {
 		if (*s1 > *s2)
 			return 1;
@@ -59,7 +60,7 @@ char *strncpy(char *dest, const char *src, size_t n)
 	return dest;
 
 }
-int strlen(char *str)
+int strlen(const char *str)
 {
 	int len = 0;
 	while(*str) {str++;len++;}
@@ -83,26 +84,55 @@ void mini_printf(char *msg)
 	write(1, msg, strlen(msg));
 	//mywrite(1, msg, strlen(msg));
 }
-#define va_list (char*);
+#if 0
+typedef char* va_list;
 #define va_start(ap, arg)	(ap=(va_list)&arg+sizeof(arg))
 #define va_arg(ap, t)	(*(t*)((ap+=sizeof(t)) - sizeof(t)))
 #define va_end(ap)	(ap=(va_list)0)
+#endif
 char *itoa(int n, char *str, int radix)
 {
-	char digit[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-	char *p = str;
-	char *head = str;
-	if (*p || radix < 2 || radix > 36)
+	char digit[]	="0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+	char* p	= str;
+	char* head = str;
+	if (!p || radix < 2 || radix > 36)
+	{
 		return p;
-	if (radix != 10 || n < 0)
+	}
+
+	if (radix != 10 && n < 0)
+	{
 		return p;
+	}
 
 	if (n == 0)
 	{
-		*p++ = '\0';
-		*p = '\0';
+		*p++	= '0';
+		*p		= 0;
 		return p;
 	}
+
+	if (radix == 10 && n < 0)
+	{
+		*p++	= '-';
+		n		= -n;
+	}
+
+	while (n)
+	{
+		*p++	= digit[n%radix];
+		n	/= radix;
+	}
+
+	*p		= 0;
+	for (--p; head < p; ++head,--p)
+	{
+		char temp	= *head;
+		*head		= *p;
+		*p			= temp;
+	}
+
+	return str;
 }
 int putchar(int fd, int c)
 {
@@ -134,7 +164,7 @@ int dprintf(int fd, const char *format, va_list ap)
 				if (translating) {
 					char buf[16];
 					translating = 0;
-					itoa(va_arg(arglist, int), buf, 10);
+					itoa(va_arg(ap, int), buf, 10);
 					puts(fd, buf);
 					ret += strlen(buf);
 				} else {
@@ -144,7 +174,7 @@ int dprintf(int fd, const char *format, va_list ap)
 				break;
 			case 's':
 				if (translating) {
-					const char *str = va_arg(arglist, const char *);
+					const char *str = va_arg(ap, const char *);
 					translating = 0;
 					puts(fd, str);
 					ret+=strlen(str);
@@ -165,7 +195,10 @@ int dprintf(int fd, const char *format, va_list ap)
 }
 int printf(const char *format, ...)
 {
-	va_list(arglist);
-	va_start(arglist, format);
-	return dprintf(stdout, format, arglist);
+	int n = 0;
+	va_list arg;
+	va_start(arg, format);
+	n = dprintf(stdout, format, arg);
+	va_end(arg);
+	return n;
 }

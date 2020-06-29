@@ -16,7 +16,6 @@ typedef struct heap_header {
 #define ADDR_ADD(a,o) (((char *)a) + o)
 #define HEADER_SIZE	(sizeof(heap_header_t))
 heap_header_t *list_head = NULL;
-static long brk(void *end);
 
 void free(void *ptr)
 {
@@ -64,8 +63,10 @@ void* malloc(unsigned size)
 			heap_header_t *next = (heap_header_t *)(ADDR_ADD(header, (size + HEADER_SIZE)));
 			next->prev = header;
 			next->next = header->next;
-			header->next->prev = next;
-			header->next = header->next;
+			if (header->next) {
+				header->next->prev = next;
+			}
+			header->next = next;
 			next->size = header->size - size - HEADER_SIZE;
 			next->type = HEAP_BLOCK_FREE;
 			header->size = size + HEADER_SIZE;
@@ -76,28 +77,18 @@ void* malloc(unsigned size)
 	}
 	return NULL;
 }
-#if 0
-static long brk(void *end)
-{
-	int ret = 0;
-	asm("mov %1, %%rdi\n\t"
-			"mov $12, %%rax\n\t"
-			"syscall\n\t"
-			"mov %%rax, %0":"=r"(ret):"g"(end));
-	return ret;
-}
-#endif
 
 int mini_crt_heap_init()
 {
-	return 0;
 	void *base = NULL, *end = NULL;
 	heap_header_t *header = NULL;
 	unsigned heap_size = (1024*1024*32);
 
 	base = (void *)brk(0);
+	printf("brk base:%d\n", base);
 	end = ADDR_ADD(base, heap_size);
 	end = (void *)brk(end);
+	printf("brk end:%d\n", end);
 	if (!end) return -1;
 
 	header = (heap_header_t *)base;
