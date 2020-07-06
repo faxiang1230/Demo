@@ -16,6 +16,10 @@ Three methods of application memory stat:
 
 use mtrace/muntrace function, `man 3 mtrace`
 
-5. mtrace_hook
+5. malloc hook
 
 replace mtrace hook, `man 3 mtrace_hook`
+
+6. strong symbol replace glibc weak symbol
+
+>reflink:https://stackoverflow.com/questions/17803456/an-alternative-for-the-deprecated-malloc-hook-functionality-of-glibc

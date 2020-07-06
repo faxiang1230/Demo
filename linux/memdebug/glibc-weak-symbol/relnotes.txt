@@ -1,0 +1,73 @@
+MEM_debug Release Notes
+-----------------------
+v1.0.13, 20191117
+-----------------
+* Initializing global_bytes_alloced_limit with std::numeric_limits<uint64_t>::max() didn't work in some cases, switched to 0 as the default value.
+
+v1.0.12, 20191117
+-----------------
+* Removed "mem_debug" prefix from most API functions, as the namespace
+already covers that for C++. C API is unchanged.
+* Added function set_memory_limit to set an upper bound on the total
+amount of memory allocated from the heap. This can help debug cases
+where your heap usage grows unexpectedly.
+
+v1.0.11, 20190919
+-----------------
+* due to missing extern "C" declaration, memalign was not intercepted. Added missing declaration to memalign and all other intercepted functions for consistency.
+
+v1.0.10, 20190814
+-----------------
+* fixed a race condition in mem_debug_check: num_global_allocs was read outside of critical section.
+
+v1.0.9, 20190514
+----------------
+* Changed method to store thread-specific statistics, which was causing mutex recursion errors. Now uses std::map, with a simple custom allocator to bypass mem_debug's own allocations. This eliminates the c++11 requirement, so removed the check.
+* added safe_print_dec() to print decimal numbers.
+* added "MEM_debug" prefix to user error messages.
+* changed MemDebugInfo to not use printf when printing the startup banner.
+
+v1.0.8, 20190512
+----------------
+* added mem_debug_total_mallocs.
+
+v1.0.7, 20190423
+----------------
+* simplified mem_debug_check.
+
+v1.0.6, 20190415
+----------------
+* fixed "mutex recursion error" message that appeared occasionally. It was caused by access to a thread local counter after the thread had exited. Per-thread statistics now require c++11.
+* added global count of total malloc/free calls, printed at program exit summary.
+* nicer output of mem_debug_show_leak_list, quoted string buffers now have whitespaces escaped.
+* MD_LOG_* macros (for calling an external logger, or printf by default) are no longer called from a critical section, so they may allocate memory if desired.
+
+v1.0.5, 20181220
+----------------
+* mem_debug_clear_leak_list now optionally restarts allocation serial numbers from 0. When looking for a leak this is helpful for finding patterns in leaking allocations.
+* mem_debug_abort_on_allocation now accepts an optional size parameter. If used, abort will only occur if both serial number and allocation size match the request.
+* fixed a bug where mem_debug_total_alloced_bytes would return wrong values for thread-scope memory usage, in case memory allocated by this thread has been freed by a different thread.
+
+v1.0.4, 20181007
+----------------
+* added is_global option to mem_debug_total_alloced_bytes to allow checking memory usage of the current thread.
+* in mem_debug_show_leak_list, usage of FLOG with a very long line could cause a memory allocation when the mem_debug mutex is locked. Use safe_print_string instead for displaying memory leak details.
+
+v1.0.3, 20170927
+----------------
+* mem_debug_total_alloced_bytes adds option to return peak amount of memory allocated.
+* output errors occurring during heap operations to stderr, not stdout.
+
+v1.0.2, 20170314
+----------------
+* Changed mem_debug_check_ptr to accept const pointers.
+
+v1.0.1, 20151210
+----------------
+* Added mem_debug_check_ptr function.
+* MEM_DEBUG_THREAD_CHECK did not behave as advertised.
+* Bugfix: Possible errors if prefix or suffix size were set to zero.
+
+v1.0.0, 20151128
+----------------
+* Initial release

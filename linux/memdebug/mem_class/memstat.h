@@ -6,9 +6,9 @@
 #include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
-#define MEM_DEBUG_MAGIC			"f06f19cd"
+#define MEM_DEBUG_MAGIC			0xf06f19cdf06f19cd
 
-extern struct list_head bfx_meminfo_list;
+extern struct list_head bfx_global_mem_class_list;
 
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
@@ -19,12 +19,12 @@ typedef struct {
 	const char *funcname;
 	unsigned long count;
 	struct list_head head;
-}bfx_mem_alloc_t;
+}my_mem_class_t;
 
 typedef struct {
-	char magic[sizeof(MEM_DEBUG_MAGIC) - 1];
-	void *mem_alloc;
-} bfx_mem_padding_t;
+	unsigned int magic;
+	void *mem_class;
+} my_mem_header_t;
 static inline void bfx_list_add_cas(struct list_head *new,
 		struct list_head *prev,
 		struct list_head *next)
@@ -56,29 +56,32 @@ dec_again:
 }
 #define bfx_malloc(x)       \
 ({                      \
-	void *ptr = malloc(sizeof(bfx_mem_padding_t) + (x));    \
-	static bfx_mem_alloc_t bfx_mem_node = {					\
+	void *ptr = malloc(sizeof(my_mem_header_t) + (x));    \
+	static my_mem_class_t my_mem_class = {					\
 		.info = ADDRESS, .funcname = __func__, .count = 0,	\
-		.head = {&(bfx_mem_node.head), &(bfx_mem_node.head)}	\
+		.head = {&(my_mem_class.head), &(my_mem_class.head)}	\
 	};			\
-	if (list_empty(&bfx_mem_node.head))	\
-		bfx_list_add_cas(&bfx_mem_node.head, &bfx_meminfo_list, bfx_meminfo_list.next);	\
-	atomic_cas_inc(&bfx_mem_node.count);  									\
-	((bfx_mem_padding_t *)ptr)->mem_alloc = &bfx_mem_node;    	\
-	memcpy(((bfx_mem_padding_t *)ptr)->magic, MEM_DEBUG_MAGIC, sizeof(MEM_DEBUG_MAGIC) - 1);    	\
-	(ptr + sizeof(bfx_mem_padding_t));                \
+	if (list_empty(&my_mem_class.head))	\
+		bfx_list_add_cas(&my_mem_class.head, &bfx_global_mem_class_list, bfx_global_mem_class_list.next);	\
+	if (ptr) {				\
+		my_mem_header_t *hdr = (my_mem_header_t *)ptr;	\
+		atomic_cas_inc(&my_mem_class.count);  									\
+		hdr->mem_class = &my_mem_class;					\
+		hdr->magic = (unsigned long)hdr ^ MEM_DEBUG_MAGIC;			\
+		ptr = hdr + 1;               \
+	}								\
+	ptr;\
 })
 #define bfx_free(x)         \
 ({                      	\
 	if (x) { \
-		bfx_mem_padding_t *tmp = (bfx_mem_padding_t*)(((unsigned long)x)-sizeof(bfx_mem_padding_t));        \
-		if (memcmp(tmp->magic, MEM_DEBUG_MAGIC, sizeof(MEM_DEBUG_MAGIC) - 1)) {				\
+		my_mem_header_t *hdr = (my_mem_header_t*)(((unsigned long)x)-sizeof(my_mem_header_t));        \
+		if (hdr->magic != (unsigned long)hdr ^ MEM_DEBUG_MAGIC) {				\
 			fprintf(stderr, "MAGIC ERROR:%p %s %d\n", x, __FILE__, __LINE__); free(x);				\
 		} else {												\
-			bfx_mem_alloc_t *node = tmp->mem_alloc;				\
-			atomic_cas_dec(&node->count);						\
-			free(tmp);											\
-			(x)=NULL;												\
+			my_mem_class_t *my_class = hdr->mem_class;				\
+			atomic_cas_dec(&my_class->count);						\
+			free(hdr);											\
 		}\
 	}\
 })
