@@ -1,36 +1,46 @@
 package main
 
 import (
+	"bufio"
+	"fmt"
 	"log"
 	"net"
-	"bufio"
-	"time"
-	"fmt"
 	"os"
+	"time"
 )
-
+var count = 1
 func client() {
-	time.Sleep(time.Second)
-	conn, err := net.Dial("udp", ":8080")
-	if err != nil {
-		log.Fatal("[Client] Dial error", err)
-		return
+	for {
+		time.Sleep(1 * time.Second)
+		conn, err := net.Dial("udp", ":8080")
+		if err != nil {
+			log.Fatal("[Client] Dial error", err)
+			continue
+		}
+		fmt.Fprintf(conn, "GET / HTTP/1.0\r\n\r\n")
+		res, err := bufio.NewReader(conn).ReadString('\n')
+		log.Print("[Client] recv:", res)
+		if err != nil {
+			log.Fatal("[Client] recv error:", err)
+		}
+		conn.Close()
 	}
-	fmt.Fprintf(conn, "GET / HTTP/1.0\r\n\r\n")
-	res, err := bufio.NewReader(conn).ReadString('\n')
-	log.Fatal("[Client] recv:", res, err)
 }
-func handleConnection(c net.PacketConn, addr net.Addr, buf []byte) {
-
-		reply := fmt.Sprintf("%s %d\n", string(buf), count)
-		_, err := c.Write([]byte(reply))
-		log.Print("[Server] reply:", reply, err)
-		c.Close()
+func handleConnection(c *net.UDPConn, addr *net.UDPAddr, buf []byte) {
+	reply := fmt.Sprintf("%d %s", count, string(buf))
+	c.WriteToUDP([]byte(reply), addr)
+	log.Print("[Server] reply:", reply)
+	count++
 }
 func main() {
 	go client()
-	
-	ln, err := net.Listen("udp", ":8080")
+	var laddr *net.UDPAddr
+	var err error
+	if laddr, err = net.ResolveUDPAddr("udp", ":8080"); err != nil {
+		log.Fatal("[Server] address fatal", err)
+		return
+	}
+	ln, err := net.ListenUDP("udp", laddr)
 	if err != nil {
 		log.Fatal("Can't Listen tcp:8080")
 		os.Exit(-1)
@@ -38,10 +48,11 @@ func main() {
 	defer ln.Close()
 	for {
 		buf := make([]byte, 1024)
-		n, addr, err := ln.ReadFrom(buf)
+		n, raddr, err := ln.ReadFromUDP(buf)
 		if err != nil {
+			//log.Fatal("Read error:", err)
 			continue
 		}
-		go handleConnection(ln, addr, buf[:n])
+		go handleConnection(ln, raddr, buf[:n])
 	}
 }
