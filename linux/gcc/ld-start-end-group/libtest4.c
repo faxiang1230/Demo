@@ -1,0 +1,4 @@
+int funcd()
+{
+	return 'd';
+}
