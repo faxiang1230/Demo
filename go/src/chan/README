@@ -1,0 +1,11 @@
+channel的超时处理
+channel的无缓冲作为同步机制使用
+
+demo1:
+$ TZ=US/Eastern    ./clock1 -port 8010 &
+$ TZ=Asia/Tokyo    ./clock1 -port 8020 &
+$ TZ=Europe/London ./clock1 -port 8030 &
+
+$./netcat1 -port 8010
+$./netcat1 -port 8020
+$./netcat1 -port 8030
