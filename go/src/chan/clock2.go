@@ -19,7 +19,8 @@ func main() {
 	if len(os.Args) <= 1 {
 		log.Fatalf("Expect %s NewYork=localhost:8010", os.Args[0])
 	}
-	for _, arg := range os.Args {
+	for index, arg := range os.Args {
+		if index == 0 { continue}
 		s := strings.Split(arg, "=")
 		if len(s) <= 1 {
 			log.Fatalf("Unexpect arg:%s", s)
@@ -51,6 +52,8 @@ func main() {
 
 		}(server.Location)
 	}
+	stop := make(chan bool)
+	<-stop
 }
 func handleConn(c net.Conn, location *time.Location) {
 	defer c.Close()

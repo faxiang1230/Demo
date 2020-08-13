@@ -9,3 +9,6 @@ $ TZ=Europe/London ./clock1 -port 8030 &
 $./netcat1 -port 8010
 $./netcat1 -port 8020
 $./netcat1 -port 8030
+
+demo2:
+clock2 NewYork=localhost:8010 Tokyo=localhost:8020 London=localhost:8030

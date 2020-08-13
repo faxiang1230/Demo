@@ -6,10 +6,13 @@ import (
     "net"
     "os"
 	"flag"
+	"strconv"
 )
 var port = flag.Int("port", 8000, "server port")
 func main() {
+	flag.Parse()
 	server := "localhost:" + strconv.Itoa(*port)
+	log.Println("server's info", server)
     conn, err := net.Dial("tcp", server)
     if err != nil {
         log.Fatal(err)
