@@ -47,13 +47,19 @@ type conn struct {
 	rw           net.Conn // "Protocol Interpreter" connection
 	dataHostPort string
 	prevCmd      string
+	currentWorkDirectory			string
 	pasvListener net.Listener
 	cmdErr       error // Saved command connection write error.
 	binary       bool
 }
 
 func NewConn(cmdConn net.Conn) *conn {
-	return &conn{rw: cmdConn}
+	dir, err := os.Getwd()
+	if err != nil {
+		log.Fatal("Can't open current's workDirectory")
+	}
+	log.Print("cwd:", dir)
+	return &conn{rw: cmdConn, currentWorkDirectory: dir}
 }
 
 // hostPortToFTP returns a comma-separated, FTP-style address suitable for
@@ -121,9 +127,9 @@ func (c *conn) list(args []string) {
 	var filename string
 	switch len(args) {
 	case 0:
-		filename = "."
+		filename = c.currentWorkDirectory
 	case 1:
-		filename = args[0]
+		filename = c.currentWorkDirectory + "/" + args[0]
 	default:
 		c.writeln("501 Too many arguments.")
 		return
@@ -171,6 +177,34 @@ func (c *conn) list(args []string) {
 	c.writeln("226 Closing data connection. List successful.")
 }
 
+func (c *conn) size(args []string) {
+	var filename string
+	switch len(args) {
+	case 1:
+		filename = c.currentWorkDirectory + "/" + args[0]
+	default:
+		c.writeln("501 Too many arguments.")
+		return
+	}
+	fi, err := os.Stat(filename)
+	if err != nil {
+		c.writeln("550 Can't stat file.")
+		return
+	}
+	c.writeln("231 " + strconv.FormatInt(fi.Size(), 10))
+}
+func (c *conn) cwd(args []string) {
+	switch len(args) {
+	case 0:
+		c.writeln("501 No available work directory")
+	case 1:
+		c.currentWorkDirectory = c.currentWorkDirectory + "/" + args[0]
+	default:
+		c.writeln("501 Too many arguments.")
+		return
+	}
+	c.writeln("250 Command okay.")
+}
 func (c *conn) writeln(s ...interface{}) {
 	if c.cmdErr != nil {
 		return
@@ -371,6 +405,7 @@ func (c *conn) run() {
 		if len(fields) > 1 {
 			args = fields[1:]
 		}
+		log.Print(cmd, args)
 		switch cmd {
 		case "LIST":
 			c.list(args)
@@ -397,7 +432,15 @@ func (c *conn) run() {
 		case "TYPE":
 			c.type_(args)
 		case "USER":
+			//TODO:verify username
+			c.writeln("331 User name okay, need password.")
+		case "PASS":
+			//TODO:verify user/passwd
 			c.writeln("230 Login successful.")
+		case "CWD":
+			c.cwd(args)
+		case "SIZE":
+			c.size(args)
 		default:
 			c.writeln(fmt.Sprintf("502 Command %q not implemented.", cmd))
 		}
