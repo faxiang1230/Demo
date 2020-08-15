@@ -3,13 +3,13 @@ package main
 import (
 	_ "errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
+	_ "strconv"
 	_ "syscall"
 	"time"
-	"io"
-	_"strconv"
 )
 
 func checkError(err error) {
@@ -26,7 +26,7 @@ func recvUnixMsg(c net.Conn) {
 	buf := make([]byte, 1024)
 	fmt.Println("recvUnixMsg enter")
 	for {
-		if _,err := c.Read(buf); err != nil && err != io.EOF {
+		if _, err := c.Read(buf); err != nil && err != io.EOF {
 			fmt.Println("recv error ", err)
 			return
 		} else {
@@ -49,20 +49,19 @@ func reader(r io.Reader) {
 }
 
 func unixclient(serverAddr string) {
-	c, err := net.Dial("unix", serverAddr)
+	c, err := net.Dial("unixpacket", serverAddr)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer c.Close()
 
-	//go reader(c)
-	for {
-	_, err = c.Write([]byte("hi"))
+	_, err = c.Write([]byte("hello server"))
 	if err != nil {
 		log.Fatal("write error:", err)
 	}
-	reader(c)
-	time.Sleep(time.Second)
+	for {
+		reader(c)
+		time.Sleep(time.Second)
 	}
 }
 
