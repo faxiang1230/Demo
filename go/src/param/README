@@ -1,0 +1,37 @@
+go的接口实现https://studygolang.com/articles/12348?fr=sidebar
+
+$go build -gcflags "-N -l" main.go
+
+(gdb) p inter
+$1 = {_type = 0x0, data = 0x0}
+(gdb) ptype inter
+type = struct runtime.eface {
+    runtime._type *_type;
+    void *data;
+}
+(gdb) ptype runtime._type
+No symbol "runtime" in current context.
+(gdb) ptype inter._type
+type = struct runtime._type {
+    uintptr size;
+    uintptr ptrdata;
+    uint32 hash;
+    uint8 _unused;
+    uint8 align;
+    uint8 fieldalign;
+    uint8 kind;
+    struct runtime.typeAlg *alg;
+    uint8 *gcdata;
+    struct string *_string;
+    struct runtime.uncommontype *x;
+    runtime._type *ptrto;
+} *
+
+
+在Golang的实现中，每个interface变量都有一个对应pair，pair中记录了实际变量的值和类型:
+
+(value, type)
+
+反射，就是建立在类型之上的，Golang的指定类型的变量的类型是静态的（也就是指定int、string这些的变量，它的type是static
+type），在创建变量的时候就已经确定，反射主要与Golang的interface类型相关（它的type是concrete
+type），只有interface类型才有反射一说。
