@@ -1,6 +1,7 @@
-KERNEL := /home/wangjx/work/linux-4.13.3/
+KERNEL := /lib/modules/$(shell uname -r)/build
 
-obj-m += my-lsm.o
+#obj-m += my-lsm.o
+obj-m += lastest_lsm.o
 
 all:
 	make -C $(KERNEL) M=$(shell pwd)
